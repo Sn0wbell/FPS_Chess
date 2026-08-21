@@ -131,7 +131,7 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
     private void EnableNoDamageMode()
     {
         foreach (var g in guns)
-            g.damage = 0f;
+            g.setDamage(0f);
 
         foreach (var m in melees)
             m.damage = 0f;

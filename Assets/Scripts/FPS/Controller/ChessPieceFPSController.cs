@@ -248,9 +248,9 @@ public class ChessPieceFPSController : MonoBehaviour
         if (firePoint == null || cameraPoint == null) return;
         if (currentGun != null)
         {
-            firePoint.position = cameraPoint.position + cameraPoint.forward * currentGun.firePointDistance;
+            firePoint.position = cameraPoint.position + cameraPoint.forward * currentGun.GetFirePointDistance();
             firePoint.forward = cameraPoint.forward;
-            weaponBlockCheckDistance = currentGun.firePointDistance;
+            weaponBlockCheckDistance = currentGun.GetFirePointDistance();
             currentGun.BindFirePoint(firePoint);
 
             if (weaponBlockDelayTime > 0) weaponBlockDelayTime -= Time.deltaTime;
@@ -302,11 +302,17 @@ public class ChessPieceFPSController : MonoBehaviour
         if (Mouse.current == null) return;
 
         if (Mouse.current.leftButton.isPressed)
+        {
             currentWeapon.TryAttack();
-
+        }
 
         if (currentGun != null)
         {
+            if (!Mouse.current.leftButton.isPressed)
+            {
+                currentGun.SetTriggerReleasedSinceLastShot(true);
+            }
+
             if (Mouse.current.rightButton.isPressed && !currentGun.GetBlocked() && (weaponBlockDelayTime == 0))
             {
                 currentGun.SetAiming(true);
@@ -320,7 +326,7 @@ public class ChessPieceFPSController : MonoBehaviour
             {
                 currentGun.SwitchFireMode();
                 UpdateWeaponSystemPosition();
-                Debug.Log("Switched fire mode to: " + currentGun.currentFireMode);
+                Debug.Log("Switched fire mode to: " + currentGun.GetFirePointDistance());
             }
 
             if (Keyboard.current.rKey.wasPressedThisFrame)

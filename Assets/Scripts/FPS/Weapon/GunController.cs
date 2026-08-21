@@ -11,63 +11,63 @@ public enum FireMode
 public class GunController : WeaponController
 {
     [Header("Weapon Settings")]
-    public float firePointDistance = 0f;
-    public float fireRate = 10f;
-    public float damage = 18f;
-    public float range = 120f;
+    [SerializeField] protected float firePointDistance = 0f;
+    [SerializeField] protected float fireRate = 10f;
+    [SerializeField] protected float damage = 18f;
+    [SerializeField] protected float range = 120f;
 
     [Header("Fire Settings")]
-    public FireMode currentFireMode = FireMode.Auto;
-    public bool allowAuto = true;
-    public bool allowBurst = true;
-    public bool allowSingle = true;
+    [SerializeField] protected FireMode currentFireMode = FireMode.Auto;
+    [SerializeField] protected bool allowAuto = true;
+    [SerializeField] protected bool allowBurst = true;
+    [SerializeField] protected bool allowSingle = true;
 
     [Header("Burst Settings")]
-    public float burstDelay = 0.1f;
-    public float burstCooldown = 0.5f;
-    public int burstCount = 3;
+    [SerializeField] protected float burstDelay = 0.1f;
+    [SerializeField] protected float burstCooldown = 0.5f;
+    [SerializeField] protected int burstCount = 3;
 
     [Header("Recoil Settings")]
-    public bool applyRecoil = true;
-    public float recoilVertical = 3.2f;
-    public float recoilHorizontal = 1.5f;
-    public float recoilApplySpeed = 18f;
-    public float recoilReturnSpeed = 22f;
+    [SerializeField] protected bool applyRecoil = true;
+    [SerializeField] protected float recoilVertical = 3.2f;
+    [SerializeField] protected float recoilHorizontal = 1.5f;
+    [SerializeField] protected float recoilApplySpeed = 18f;
+    [SerializeField] protected float recoilReturnSpeed = 22f;
     public float aimRecoilMultiplier = 0.5f;
 
     [Header("Spread Settings")]
-    public bool applySpread = true;
-    public float minSpreadAngle = 0.8f;
-    public float maxSpreadAngle = 4f;
-    public float spreadIncreasePerShot = 0.35f;
-    public float spreadApplySpeed = 0f;
-    public float spreadReturnSpeed = 6f;
-    public float spreadCrosshairSizePerAngle = 0f;
+    [SerializeField] protected bool applySpread = true;
+    [SerializeField] protected float minSpreadAngle = 0.8f;
+    [SerializeField] protected float maxSpreadAngle = 4f;
+    [SerializeField] protected float spreadIncreasePerShot = 0.35f;
+    [SerializeField] protected float spreadApplySpeed = 0f;
+    [SerializeField] protected float spreadReturnSpeed = 6f;
+    [SerializeField] protected float spreadCrosshairSizePerAngle = 0f;
 
     [Header("Ammo Settings")]
-    public int magazineSize = 30;
-    public int currentAmmo = 30;
-    public int totalAmmo = 180;
-    public float reloadTime = 2f;
+    [SerializeField] protected int magazineSize = 30;
+    [SerializeField] protected int currentAmmo = 30;
+    [SerializeField] protected int totalAmmo = 180;
+    [SerializeField] protected float reloadTime = 2f;
 
     [Header("Aim Settings")]
-    public bool hasScope = false;
-    public float aimFOV = 40f;
-    public float normalFOV = 60f;
-    public float aimSpeed = 10f;
-    public Vector3 aimOffset = Vector3.zero;
+    [SerializeField] protected bool hasScope = false;
+    [SerializeField] protected float aimFOV = 40f;
+    [SerializeField] protected float normalFOV = 60f;
+    [SerializeField] protected float aimSpeed = 10f;
+    [SerializeField] protected Vector3 aimOffset = Vector3.zero;
 
     [Header("Crosshair Settings")]
-    public float smoothSpreadSpeed = 0f;
+    [SerializeField] protected float smoothSpreadSpeed = 0f;
 
     [Header("Bullet Settings")]
-    public GameObject bulletPrefab;
-    public float bulletSpeed = 80f;
-    public float bulletLifeTime = 3f;
+    [SerializeField] protected GameObject bulletPrefab;
+    [SerializeField] protected float bulletSpeed = 80f;
+    [SerializeField] protected float bulletLifeTime = 3f;
 
     [Header("Effects")]
-    public ParticleSystem muzzleFlash;
-    public AudioSource fireSound;
+    [SerializeField] protected ParticleSystem muzzleFlash;
+    [SerializeField] protected AudioSource fireSound;
 
     // Internal state
     protected float nextTimeToFire;
@@ -94,6 +94,32 @@ public class GunController : WeaponController
     protected RectTransform pointLeftScope;
     protected RectTransform pointRightScope;
 
+    private FireMode pendingFireMode;
+    private bool hasPendingFireMode;
+    private bool IsBurstActive()
+    {
+        return currentFireMode == FireMode.Burst &&
+               shotsRemainingInBurst > 0;
+    }
+    private void ApplyPendingFireMode()
+    {
+        if (!hasPendingFireMode)
+            return;
+
+        currentFireMode = pendingFireMode;
+        hasPendingFireMode = false;
+
+        NotifyHUD();
+
+        Debug.Log("Applied pending fire mode: " + currentFireMode);
+    }
+    private void CompleteBurst()
+    {
+        shotsRemainingInBurst = 0;
+        nextBurstShotTime = 0;
+        nextBurstTime = 0;
+        ApplyPendingFireMode();
+    }
     public delegate void OnGunStatChange();
     public event OnGunStatChange onGunStatChange;
 
@@ -113,6 +139,27 @@ public class GunController : WeaponController
         if (!IsFireModeAllowed(currentFireMode))
             currentFireMode = GetFirstAllowedMode();
     }
+
+    public float GetFirePointDistance()
+    {
+        return firePointDistance;
+    }
+    public int GetCurrentAmmo()
+    {
+        return currentAmmo;
+    }
+    public int GetTotalAmmo()
+    {
+        return totalAmmo;
+    }
+    public FireMode GetCurrentFireMode()
+    {
+        return currentFireMode;
+    }
+    public void setDamage(float newDamage)
+    {
+        damage = newDamage;
+    }
     FireMode GetFirstAllowedMode()
     {
         if (allowAuto) return FireMode.Auto;
@@ -130,7 +177,7 @@ public class GunController : WeaponController
     }
     bool CanFire()
     {
-        return !isBlocked && !isReloading && currentAmmo > 0 && Time.time >= nextTimeToFire;
+        return !isBlocked && !isReloading && currentAmmo > 0;
     }
     // --- EXTERNAL API ---
 
@@ -192,6 +239,8 @@ public class GunController : WeaponController
             StartReload();
             return;
         }
+
+        HandleBurstFire();
     }
     void UpdateAiming()
     {
@@ -223,8 +272,7 @@ public class GunController : WeaponController
             case FireMode.Auto:
                 if (time >= nextTimeToFire)
                 {
-                    nextTimeToFire = time + 1f / fireRate;
-                    Fire();
+                    if (Fire()) nextTimeToFire = time + 1f / fireRate;
                 }
                 break;
 
@@ -232,27 +280,26 @@ public class GunController : WeaponController
                 // Start a new burst if trigger pressed and burst ready
                 if (shotsRemainingInBurst == 0 && triggerReleasedSinceLastShot && time >= nextBurstTime)
                 {
-                    shotsRemainingInBurst = Mathf.Min(burstCount, currentAmmo);
                     triggerReleasedSinceLastShot = false;
-                    nextBurstShotTime = time;
-                    nextBurstTime = time + burstCooldown;
-                    nextTimeToFire = nextBurstTime;
-                }
+                    if(time >= nextBurstTime)
+                    {
+                        shotsRemainingInBurst = Mathf.Min(burstCount, currentAmmo);
+                        nextBurstShotTime = time;
+                        nextBurstTime = time + burstCooldown;
 
-                if (shotsRemainingInBurst > 0 && time >= nextBurstShotTime)
-                {
-                    nextBurstShotTime = time + burstDelay;
-                    Fire();
-                    shotsRemainingInBurst--;
+                        HandleBurstFire();
+                    }
                 }
                 break;
 
             case FireMode.Single:
                 if (triggerReleasedSinceLastShot && time >= nextTimeToFire)
                 {
-                    Fire();
-                    nextTimeToFire = time + 1f / fireRate;
-                    triggerReleasedSinceLastShot = false;
+                    if (Fire())
+                    {
+                        nextTimeToFire = time + 1f / fireRate;
+                        triggerReleasedSinceLastShot = false;
+                    }    
                 }
                 break;
         }
@@ -261,27 +308,52 @@ public class GunController : WeaponController
     {
         int modeCount = System.Enum.GetValues(typeof(FireMode)).Length;
 
-        for (int i = 1; i <= modeCount; i++) // Loop at most once through all options
-        {
-            FireMode nextMode = (FireMode)(((int)currentFireMode + i) % modeCount);
+        FireMode nextMode = currentFireMode;
 
-            if ((nextMode == FireMode.Auto && allowAuto) ||
-                (nextMode == FireMode.Burst && allowBurst) ||
-                (nextMode == FireMode.Single && allowSingle))
+        for (int i = 1; i <= modeCount; i++)
+        {
+            FireMode candidate =
+                (FireMode)(((int)currentFireMode + i) % modeCount);
+
+            if ((candidate == FireMode.Auto && allowAuto) ||
+                (candidate == FireMode.Burst && allowBurst) ||
+                (candidate == FireMode.Single && allowSingle))
             {
-                currentFireMode = nextMode;
-                NotifyHUD();
-                Debug.Log("Switched to: " + currentFireMode);
+                nextMode = candidate;
                 break;
             }
         }
+
+        if (nextMode == currentFireMode)
+            return;
+
+        // If a burst is currently active, do not interrupt it.
+        // Queue the requested fire mode instead.
+        if (IsBurstActive())
+        {
+            pendingFireMode = nextMode;
+            hasPendingFireMode = true;
+
+            Debug.Log(
+                $"Fire mode change queued: {currentFireMode} -> {pendingFireMode}"
+            );
+
+            return;
+        }
+
+        currentFireMode = nextMode;
+        hasPendingFireMode = false;
+
+        NotifyHUD();
+
+        Debug.Log("Switched to: " + currentFireMode);
     }
 
     // --- FIRE LOGIC ---
-    protected virtual void Fire()
+    protected virtual bool Fire()
     {
-        if (bulletPrefab == null || firePoint == null) return;
-        if (currentAmmo <= 0 || isReloading) return;
+        if (bulletPrefab == null || firePoint == null) return false;
+        if (currentAmmo <= 0 || isReloading) return false;
 
         currentAmmo--;
         isShooting = true;
@@ -325,7 +397,32 @@ public class GunController : WeaponController
         // Effects
         if (muzzleFlash != null) muzzleFlash.Play();
         if (fireSound != null) fireSound.Play();
+
+        return true;
     }
+
+    private void HandleBurstFire()
+    {
+        if (currentFireMode == FireMode.Burst && shotsRemainingInBurst > 0 && Time.time >= nextTimeToFire)
+        {
+            nextBurstShotTime = Time.time + burstDelay;
+            nextTimeToFire = Time.time + 1f / fireRate;
+            if (Fire())
+            {
+                shotsRemainingInBurst--;
+
+                if (currentAmmo <= 0)
+                {
+                    shotsRemainingInBurst = 0;
+                }
+
+                if (shotsRemainingInBurst <= 0)
+                {
+                    CompleteBurst();
+                }
+            }
+        }
+    }    
 
     private void UpdateRecoil(float deltaTime)
     {
@@ -347,7 +444,14 @@ public class GunController : WeaponController
     public void StartReload()
     {
         if (!isReloading && currentAmmo < magazineSize && totalAmmo > 0)
+        {
+            if (currentFireMode == FireMode.Burst)
+            {
+                CompleteBurst();
+            }
+
             StartCoroutine(Reload());
+        }
     }
 
     private IEnumerator Reload()

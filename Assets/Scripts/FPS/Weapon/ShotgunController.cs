@@ -21,10 +21,10 @@ public class ShotgunController : GunController
         oneShotSpreadMultiplier = Mathf.Max(0f, spreadMultiplier);
     }
 
-    protected override void Fire()
+    protected override bool Fire()
     {
-        if (bulletPrefab == null || firePoint == null) return;
-        if (currentAmmo <= 0 || isReloading) return;
+        if (bulletPrefab == null || firePoint == null) return false;
+        if (currentAmmo <= 0 || isReloading) return false;
 
         currentAmmo--;
         isShooting = true;
@@ -103,5 +103,7 @@ public class ShotgunController : GunController
             oneShotDamageMultiplier = 1f;
             oneShotSpreadMultiplier = 1f;
         }
+
+        return true;
     }
 }

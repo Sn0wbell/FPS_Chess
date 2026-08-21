@@ -61,8 +61,8 @@ public class WeaponHUD : MonoBehaviour
     {
         if (gunController != null)
         {
-            ammoText.text = $"{gunController.currentAmmo} / {gunController.totalAmmo}";
-            ammoText.color = gunController.currentAmmo == 0 ? Color.red : Color.white;
+            ammoText.text = $"{gunController.GetCurrentAmmo()} / {gunController.GetTotalAmmo()}";
+            ammoText.color = gunController.GetCurrentAmmo() == 0 ? Color.red : Color.white;
         }
     }
 
@@ -70,7 +70,7 @@ public class WeaponHUD : MonoBehaviour
     {
         if (gunController != null)
         {
-            string modeName = gunController.currentFireMode.ToString().ToUpper();
+            string modeName = gunController.GetCurrentFireMode().ToString().ToUpper();
             fireModeText.text = $"[ {modeName} ]";
         }
     }
