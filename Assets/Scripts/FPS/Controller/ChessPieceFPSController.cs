@@ -147,13 +147,17 @@ public class ChessPieceFPSController : MonoBehaviour
 
         if (canAct)
         {
-            HandleWeaponInput();
             HandleSkillInput();
         }
 
         HandleMouseLook();
         UpdateWeaponSystemPosition();
         HandleWeaponBlock();
+
+        if (canAct)
+        {
+            HandleWeaponInput();
+        }
 
         if (currentWeapon != null)
             currentWeapon.Tick(Time.deltaTime);

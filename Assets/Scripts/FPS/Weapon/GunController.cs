@@ -113,11 +113,10 @@ public class GunController : WeaponController
 
         Debug.Log("Applied pending fire mode: " + currentFireMode);
     }
-    private void CompleteBurst()
+    public void CompleteBurst()
     {
         shotsRemainingInBurst = 0;
         nextBurstShotTime = 0;
-        nextBurstTime = 0;
         ApplyPendingFireMode();
     }
     public delegate void OnGunStatChange();
@@ -403,24 +402,26 @@ public class GunController : WeaponController
 
     private void HandleBurstFire()
     {
-        if (currentFireMode == FireMode.Burst && shotsRemainingInBurst > 0 && Time.time >= nextTimeToFire)
+        if (currentFireMode != FireMode.Burst)
+            return;
+
+        if (shotsRemainingInBurst <= 0)
+            return;
+
+        if (Time.time < nextBurstShotTime)
+            return;
+
+        if (Fire())
         {
-            nextBurstShotTime = Time.time + burstDelay;
-            nextTimeToFire = Time.time + 1f / fireRate;
-            if (Fire())
+            shotsRemainingInBurst--;
+
+            if (currentAmmo <= 0 || shotsRemainingInBurst <= 0)
             {
-                shotsRemainingInBurst--;
-
-                if (currentAmmo <= 0)
-                {
-                    shotsRemainingInBurst = 0;
-                }
-
-                if (shotsRemainingInBurst <= 0)
-                {
-                    CompleteBurst();
-                }
+                CompleteBurst();
+                return;
             }
+
+            nextBurstShotTime = Time.time + burstDelay;
         }
     }    
 
