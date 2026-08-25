@@ -23,7 +23,6 @@ public class GunController : WeaponController
     [SerializeField] protected bool allowSingle = true;
 
     [Header("Burst Settings")]
-    [SerializeField] protected float burstDelay = 0.1f;
     [SerializeField] protected float burstCooldown = 0.5f;
     [SerializeField] protected int burstCount = 3;
 
@@ -71,7 +70,6 @@ public class GunController : WeaponController
 
     // Internal state
     protected float nextTimeToFire;
-    protected float nextBurstShotTime;
     protected float nextBurstTime;
     protected int shotsRemainingInBurst;
     protected bool triggerReleasedSinceLastShot = true;
@@ -116,7 +114,6 @@ public class GunController : WeaponController
     public void CompleteBurst()
     {
         shotsRemainingInBurst = 0;
-        nextBurstShotTime = 0;
         ApplyPendingFireMode();
     }
     public delegate void OnGunStatChange();
@@ -223,7 +220,22 @@ public class GunController : WeaponController
     }
     public override void Tick(float deltaTime)
     {
-        if (firePoint == null || isBlocked)
+
+        if (firePoint == null)
+            return;
+
+        if (currentAmmo <= 0 && !isReloading)
+        {
+            if (currentFireMode == FireMode.Burst)
+            {
+                CompleteBurst();
+            }
+
+            StartReload();
+            return;
+        }
+
+        if (isBlocked)
             return;
 
         isShooting = false;
@@ -232,12 +244,6 @@ public class GunController : WeaponController
         UpdateCrosshairPoints();
         UpdateRecoil(deltaTime);
         UpdateSpread(deltaTime);
-
-        if (currentAmmo <= 0 && !isReloading)
-        {
-            StartReload();
-            return;
-        }
 
         HandleBurstFire();
     }
@@ -283,7 +289,6 @@ public class GunController : WeaponController
                     if(time >= nextBurstTime)
                     {
                         shotsRemainingInBurst = Mathf.Min(burstCount, currentAmmo);
-                        nextBurstShotTime = time;
                         nextBurstTime = time + burstCooldown;
 
                         HandleBurstFire();
@@ -408,7 +413,7 @@ public class GunController : WeaponController
         if (shotsRemainingInBurst <= 0)
             return;
 
-        if (Time.time < nextBurstShotTime)
+        if (Time.time < nextTimeToFire)
             return;
 
         if (Fire())
@@ -421,7 +426,7 @@ public class GunController : WeaponController
                 return;
             }
 
-            nextBurstShotTime = Time.time + burstDelay;
+            nextTimeToFire = Time.time + 1f / fireRate;
         }
     }    
 
@@ -446,11 +451,6 @@ public class GunController : WeaponController
     {
         if (!isReloading && currentAmmo < magazineSize && totalAmmo > 0)
         {
-            if (currentFireMode == FireMode.Burst)
-            {
-                CompleteBurst();
-            }
-
             StartCoroutine(Reload());
         }
     }

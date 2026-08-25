@@ -151,8 +151,8 @@ public class ChessPieceFPSController : MonoBehaviour
         }
 
         HandleMouseLook();
-        UpdateWeaponSystemPosition();
         HandleWeaponBlock();
+        UpdateWeaponSystemPosition();
 
         if (canAct)
         {
@@ -257,9 +257,12 @@ public class ChessPieceFPSController : MonoBehaviour
             weaponBlockCheckDistance = currentGun.GetFirePointDistance();
             currentGun.BindFirePoint(firePoint);
 
-            if (weaponBlockDelayTime > 0) weaponBlockDelayTime -= Time.deltaTime;
+            if (weaponBlockDelayTime > 0)
+            {
+                weaponBlockDelayTime -= Time.deltaTime;
+            }
             else if (weaponBlockDelayTime < 0) weaponBlockDelayTime = 0;
-            else
+            if(weaponBlockDelayTime == 0)
             {
                 weaponHolder.position = cameraPoint.position + cameraPoint.forward * weaponHolderOffset.z + cameraPoint.up * weaponHolderOffset.y + cameraPoint.right * weaponHolderOffset.x;
                 weaponHolder.forward = cameraPoint.forward;
@@ -312,12 +315,7 @@ public class ChessPieceFPSController : MonoBehaviour
 
         if (currentGun != null)
         {
-            if (!Mouse.current.leftButton.isPressed)
-            {
-                currentGun.SetTriggerReleasedSinceLastShot(true);
-            }
-
-            if (Mouse.current.rightButton.isPressed && !currentGun.GetBlocked() && (weaponBlockDelayTime == 0))
+            if (Mouse.current.rightButton.isPressed && !currentGun.GetBlocked() && (weaponBlockDelayTime <= 0))
             {
                 currentGun.SetAiming(true);
             }
@@ -326,10 +324,14 @@ public class ChessPieceFPSController : MonoBehaviour
                 currentGun.SetAiming(false);
             }
 
+            if (!Mouse.current.leftButton.isPressed)
+            {
+                currentGun.SetTriggerReleasedSinceLastShot(true);
+            }
+
             if (Keyboard.current.bKey.wasPressedThisFrame)
             {
                 currentGun.SwitchFireMode();
-                UpdateWeaponSystemPosition();
                 Debug.Log("Switched fire mode to: " + currentGun.GetFirePointDistance());
             }
 
@@ -337,9 +339,6 @@ public class ChessPieceFPSController : MonoBehaviour
             {
                 currentGun.StartReload();
             }
-
-            if(currentGun.IsReloading()) currentGun.SetBlocked(true);
-            else currentGun.SetBlocked(false);
         }    
     }
 
@@ -452,7 +451,6 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     void HandleWeaponBlock()
     {
-        if (currentGun.IsReloading()) return;
         if (currentWeapon == null || firePoint == null || cameraPoint == null) return;
 
         bool blocked = Physics.SphereCast(
@@ -461,10 +459,13 @@ public class ChessPieceFPSController : MonoBehaviour
             QueryTriggerInteraction.Ignore
         );
 
+        if (!blocked && currentGun.IsReloading()) blocked = true;
+
+        if (blocked) weaponBlockDelayTime = Time.deltaTime * (weaponAdjustSpeed + 3);
+
         if (blocked != currentWeapon.GetBlocked())
         {
             currentWeapon.SetBlocked(blocked);
-            weaponBlockDelayTime = Time.deltaTime * (weaponAdjustSpeed + 3f);
         }
 
         Vector3 targetPos = blocked ? weaponBlockedPosition.localPosition : defaultWeaponLocalPos;
