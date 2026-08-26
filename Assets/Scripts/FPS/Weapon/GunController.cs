@@ -33,6 +33,25 @@ public class GunController : WeaponController
     [SerializeField] protected float recoilApplySpeed = 18f;
     [SerializeField] protected float recoilReturnSpeed = 22f;
     public float aimRecoilMultiplier = 0.5f;
+    [SerializeField]
+    protected AnimationCurve verticalRecoilPattern =
+        new AnimationCurve(
+            new Keyframe(0f, 1.00f),
+            new Keyframe(1f, 1.05f),
+            new Keyframe(2f, 1.10f),
+            new Keyframe(3f, 1.15f),
+            new Keyframe(4f, 1.18f),
+            new Keyframe(5f, 1.20f),
+            new Keyframe(6f, 1.18f),
+            new Keyframe(7f, 1.15f)
+        );
+    [SerializeField, Range(0f, 1f)]
+    protected float horizontalRecoilRandomness = 0.35f;
+    [SerializeField, Range(0f, 1f)]
+    protected float horizontalRecoilDirectionPersistence = 0.65f;
+    [SerializeField, Range(0f, 1f)]
+    protected float horizontalRecoilDirectionChangeChance = 0.25f;
+    [SerializeField] protected float recoilPatternResetDelay = 0.25f;
 
     [Header("Spread Settings")]
     [SerializeField] protected bool applySpread = true;
@@ -82,6 +101,9 @@ public class GunController : WeaponController
     protected Vector2 currentRecoil;
     protected Vector2 appliedRecoil;
     protected Vector2 recoilVelocity;
+    protected int recoilShotIndex;
+    protected float currentHorizontalRecoilDirection;
+    protected float lastRecoilShotTime = -Mathf.Infinity;
 
     protected Vector3 defaultPosition;
     protected Vector3 aimPosition;
@@ -114,6 +136,7 @@ public class GunController : WeaponController
     public void CompleteBurst()
     {
         shotsRemainingInBurst = 0;
+        nextBurstTime = Time.time + burstCooldown;
         ApplyPendingFireMode();
     }
     public delegate void OnGunStatChange();
@@ -277,7 +300,11 @@ public class GunController : WeaponController
             case FireMode.Auto:
                 if (time >= nextTimeToFire)
                 {
-                    if (Fire()) nextTimeToFire = time + 1f / fireRate;
+                    if (Fire())
+                    {
+                        nextTimeToFire = time + 1f / fireRate;
+                        triggerReleasedSinceLastShot = false;
+                    }
                 }
                 break;
 
@@ -286,10 +313,9 @@ public class GunController : WeaponController
                 if (shotsRemainingInBurst == 0 && triggerReleasedSinceLastShot && time >= nextBurstTime)
                 {
                     triggerReleasedSinceLastShot = false;
-                    if(time >= nextBurstTime)
+                    if (time >= nextBurstTime)
                     {
                         shotsRemainingInBurst = Mathf.Min(burstCount, currentAmmo);
-                        nextBurstTime = time + burstCooldown;
 
                         HandleBurstFire();
                     }
@@ -303,7 +329,7 @@ public class GunController : WeaponController
                     {
                         nextTimeToFire = time + 1f / fireRate;
                         triggerReleasedSinceLastShot = false;
-                    }    
+                    }
                 }
                 break;
         }
@@ -354,6 +380,45 @@ public class GunController : WeaponController
     }
 
     // --- FIRE LOGIC ---
+    private void ResetRecoilPatternIfNeeded()
+    {
+        if (Time.time - lastRecoilShotTime > recoilPatternResetDelay)
+        {
+            recoilShotIndex = 0;
+        }
+    }
+
+    private float EvaluateVerticalRecoilMultiplier()
+    {
+        if (verticalRecoilPattern == null || verticalRecoilPattern.length == 0)
+            return 1f;
+
+        return Mathf.Max(
+            0f,
+            verticalRecoilPattern.Evaluate(recoilShotIndex)
+        );
+    }
+    private float GetHorizontalRecoilImpulse()
+    {
+        float randomDirection = Random.value < horizontalRecoilDirectionChangeChance ? (horizontalRecoilDirectionChangeChance *= -1f) : (horizontalRecoilDirectionChangeChance *= 1f);
+
+        float direction =
+            Mathf.Lerp(
+                currentHorizontalRecoilDirection,
+                randomDirection,
+                1f - horizontalRecoilDirectionPersistence
+            );
+
+        currentHorizontalRecoilDirection = direction;
+
+        float randomStrength =
+            Random.Range(
+                1f - horizontalRecoilRandomness,
+                1f + horizontalRecoilRandomness
+            );
+
+        return recoilHorizontal * direction * randomStrength;
+    }
     protected virtual bool Fire()
     {
         if (bulletPrefab == null || firePoint == null) return false;
@@ -363,13 +428,33 @@ public class GunController : WeaponController
         isShooting = true;
 
         NotifyHUD();
+
         // Recoil
         if (applyRecoil)
         {
-            float vertical = recoilVertical;
-            float horizontal = Random.Range(-recoilHorizontal, recoilHorizontal);
-            if (isAiming) vertical *= aimRecoilMultiplier;
-            currentRecoil += new Vector2(horizontal, vertical);
+            ResetRecoilPatternIfNeeded();
+
+            float verticalMultiplier =
+                EvaluateVerticalRecoilMultiplier();
+
+            float vertical =
+                recoilVertical * verticalMultiplier;
+
+            if (isAiming)
+            {
+                vertical *= aimRecoilMultiplier;
+            }
+
+            float horizontal =
+                GetHorizontalRecoilImpulse();
+
+            currentRecoil += new Vector2(
+                horizontal,
+                vertical
+            );
+
+            recoilShotIndex++;
+            lastRecoilShotTime = Time.time;
         }
 
         // Spread
@@ -428,15 +513,55 @@ public class GunController : WeaponController
 
             nextTimeToFire = Time.time + 1f / fireRate;
         }
-    }    
+    }
+    private bool ShouldRecoverRecoil()
+    {
+        if (!applyRecoil)
+            return false;
 
+        if (currentFireMode == FireMode.Auto &&
+            !triggerReleasedSinceLastShot)
+        {
+            return false;
+        }
+
+        if (IsBurstActive())
+        {
+            return false;
+        }
+
+        return true;
+    }
     private void UpdateRecoil(float deltaTime)
     {
-        if (!applyRecoil) return;
-        appliedRecoil = Vector2.SmoothDamp(appliedRecoil, currentRecoil, ref recoilVelocity, 1f / recoilApplySpeed, Mathf.Infinity, deltaTime);
+        if (!applyRecoil)
+            return;
+
+        appliedRecoil = Vector2.SmoothDamp(
+            appliedRecoil,
+            currentRecoil,
+            ref recoilVelocity,
+            1f / Mathf.Max(recoilApplySpeed, 0.01f),
+            Mathf.Infinity,
+            deltaTime
+        );
+
         Quaternion recoilRotation = Quaternion.Euler(-appliedRecoil.y, appliedRecoil.x, 0f);
         transform.localRotation = recoilRotation;
-        currentRecoil = Vector2.Lerp(currentRecoil, Vector2.zero, recoilReturnSpeed * deltaTime);
+
+        if (ShouldRecoverRecoil())
+        {
+            float recoilRecovery =
+                1f - Mathf.Exp(
+                    -Mathf.Max(recoilReturnSpeed, 0f) * deltaTime
+                );
+
+            currentRecoil = Vector2.Lerp(
+                currentRecoil,
+                Vector2.zero,
+                recoilRecovery
+            );
+        }
     }
 
     private void UpdateSpread(float deltaTime)
