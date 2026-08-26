@@ -49,8 +49,8 @@ public class GunController : WeaponController
     protected float horizontalRecoilRandomness = 0.35f;
     [SerializeField, Range(0f, 1f)]
     protected float horizontalRecoilDirectionPersistence = 0.65f;
-    [SerializeField, Range(0f, 1f)]
-    protected float horizontalRecoilDirectionChangeChance = 0.25f;
+    [SerializeField, Range(0f, 2f)]
+    protected float horizontalRecoilDirectionChangeChance = 1.5f;
     [SerializeField] protected float recoilPatternResetDelay = 0.25f;
 
     [Header("Spread Settings")]
@@ -58,7 +58,6 @@ public class GunController : WeaponController
     [SerializeField] protected float minSpreadAngle = 0.8f;
     [SerializeField] protected float maxSpreadAngle = 4f;
     [SerializeField] protected float spreadIncreasePerShot = 0.35f;
-    [SerializeField] protected float spreadApplySpeed = 0f;
     [SerializeField] protected float spreadReturnSpeed = 6f;
     [SerializeField] protected float spreadCrosshairSizePerAngle = 0f;
 
@@ -249,11 +248,6 @@ public class GunController : WeaponController
 
         if (currentAmmo <= 0 && !isReloading)
         {
-            if (currentFireMode == FireMode.Burst)
-            {
-                CompleteBurst();
-            }
-
             StartReload();
             return;
         }
@@ -400,7 +394,7 @@ public class GunController : WeaponController
     }
     private float GetHorizontalRecoilImpulse()
     {
-        float randomDirection = Random.value < horizontalRecoilDirectionChangeChance ? (horizontalRecoilDirectionChangeChance *= -1f) : (horizontalRecoilDirectionChangeChance *= 1f);
+        float randomDirection = Random.value < 0.5 ? (horizontalRecoilDirectionChangeChance * -1f) : (horizontalRecoilDirectionChangeChance * 1f);
 
         float direction =
             Mathf.Lerp(
@@ -576,6 +570,10 @@ public class GunController : WeaponController
     {
         if (!isReloading && currentAmmo < magazineSize && totalAmmo > 0)
         {
+            if (currentFireMode == FireMode.Burst)
+            {
+                CompleteBurst();
+            }
             StartCoroutine(Reload());
         }
     }
