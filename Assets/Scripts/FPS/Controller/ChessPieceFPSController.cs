@@ -326,8 +326,11 @@ public class ChessPieceFPSController : MonoBehaviour
 
             if (!Mouse.current.leftButton.isPressed)
             {
+                if(!currentGun.GetTriggerReleasedSinceLastShot()) currentGun.ResetHorizontalRecoilDirection();
                 currentGun.SetTriggerReleasedSinceLastShot(true);
             }
+
+            if (Keyboard.current == null) return;
 
             if (Keyboard.current.bKey.wasPressedThisFrame)
             {
@@ -406,6 +409,8 @@ public class ChessPieceFPSController : MonoBehaviour
     {
         isGrounded = controller.isGrounded;
 
+        if (Keyboard.current == null) return;
+
         Vector2 input = Vector2.zero;
         if (Keyboard.current.wKey.isPressed) input.y += 1;
         if (Keyboard.current.sKey.isPressed) input.y -= 1;
@@ -459,7 +464,7 @@ public class ChessPieceFPSController : MonoBehaviour
             QueryTriggerInteraction.Ignore
         );
 
-        if (!blocked && currentGun.IsReloading()) blocked = true;
+        if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
 
         if (blocked) weaponBlockDelayTime = Time.deltaTime * (weaponAdjustSpeed + 3);
 

@@ -47,11 +47,8 @@ public class GunController : WeaponController
         );
     [SerializeField, Range(0f, 1f)]
     protected float horizontalRecoilRandomness = 0.35f;
-    [SerializeField, Range(0f, 1f)]
-    protected float horizontalRecoilDirectionPersistence = 0.65f;
-    [SerializeField, Range(0f, 2f)]
-    protected float horizontalRecoilDirectionChangeChance = 1.5f;
     [SerializeField] protected float recoilPatternResetDelay = 0.25f;
+    [SerializeField] protected float horizontalRecoilDirectionChangeChanceIncrease;
 
     [Header("Spread Settings")]
     [SerializeField] protected bool applySpread = true;
@@ -101,6 +98,7 @@ public class GunController : WeaponController
     protected Vector2 appliedRecoil;
     protected Vector2 recoilVelocity;
     protected int recoilShotIndex;
+    protected float horizontalRecoilDirectionChangeChance;
     protected float currentHorizontalRecoilDirection;
     protected float lastRecoilShotTime = -Mathf.Infinity;
 
@@ -205,8 +203,16 @@ public class GunController : WeaponController
     public bool IsShooting() => isShooting;
     public bool IsReloading() => isReloading;
 
+    public bool GetTriggerReleasedSinceLastShot()
+    {
+        return triggerReleasedSinceLastShot;
+    }
     public void SetTriggerReleasedSinceLastShot(bool pressed) => triggerReleasedSinceLastShot = pressed;
-
+    public void ResetHorizontalRecoilDirection()
+    {
+        horizontalRecoilDirectionChangeChance = 0.5f;
+        currentHorizontalRecoilDirection = Random.value < 0.5 ? 1f : -1f;
+    }
     public void SetAiming(bool aim) => isAiming = aim;
     public void SetCrosshair(RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
@@ -249,7 +255,6 @@ public class GunController : WeaponController
         if (currentAmmo <= 0 && !isReloading)
         {
             StartReload();
-            return;
         }
 
         if (isBlocked)
@@ -267,6 +272,7 @@ public class GunController : WeaponController
     void UpdateAiming()
     {
         if (Camera.main == null) return;
+        if (isReloading) return;
 
         float targetFOV = isAiming ? aimFOV : normalFOV;
         Camera.main.fieldOfView = Mathf.Lerp(
@@ -394,14 +400,23 @@ public class GunController : WeaponController
     }
     private float GetHorizontalRecoilImpulse()
     {
-        float randomDirection = Random.value < 0.5 ? (horizontalRecoilDirectionChangeChance * -1f) : (horizontalRecoilDirectionChangeChance * 1f);
+        bool shouldChangeDirection =
+        Random.value < horizontalRecoilDirectionChangeChance;
 
-        float direction =
-            Mathf.Lerp(
-                currentHorizontalRecoilDirection,
-                randomDirection,
-                1f - horizontalRecoilDirectionPersistence
-            );
+        if (shouldChangeDirection)
+        {
+            horizontalRecoilDirectionChangeChance = 0.5f;
+        }
+        else
+        {
+            horizontalRecoilDirectionChangeChance =
+                Mathf.Min(
+                    horizontalRecoilDirectionChangeChance + horizontalRecoilDirectionChangeChanceIncrease,
+                    1f
+                );
+        }
+
+        float direction = shouldChangeDirection ? (currentHorizontalRecoilDirection * - 1f) : currentHorizontalRecoilDirection;
 
         currentHorizontalRecoilDirection = direction;
 
@@ -411,7 +426,7 @@ public class GunController : WeaponController
                 1f + horizontalRecoilRandomness
             );
 
-        return recoilHorizontal * direction * randomStrength;
+        return recoilHorizontal * currentHorizontalRecoilDirection * randomStrength;
     }
     protected virtual bool Fire()
     {
