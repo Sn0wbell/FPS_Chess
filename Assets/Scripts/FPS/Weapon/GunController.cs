@@ -154,6 +154,8 @@ public class GunController : WeaponController
 
         if (!IsFireModeAllowed(currentFireMode))
             currentFireMode = GetFirstAllowedMode();
+
+        ResetHorizontalRecoilDirection();
     }
 
     public float GetFirePointDistance()
@@ -489,7 +491,12 @@ public class GunController : WeaponController
             bulletScript.MaxRange = range;
             bulletScript.Source = gameObject;
 
-            bulletScript.Fire(firePoint.forward);
+            if (applySpread)
+            {
+                Vector3 shotDirection = bulletRotation * Vector3.forward;
+                bulletScript.Fire(shotDirection);
+            }
+            else bulletScript.Fire(firePoint.forward);
         }
 
         // Effects
