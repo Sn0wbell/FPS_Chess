@@ -80,7 +80,10 @@ public class ArenaController : MonoBehaviour
         BindPlayerCamera();
         BindFPSUI();
     }
-
+    private void OnDestroy()
+    {
+        ClearArena();
+    }
     void Update()
     {
         if (matchEnded) return;
@@ -453,7 +456,7 @@ public class ArenaController : MonoBehaviour
     // =========================
     public IReadOnlyCollection<ChessPieceFPSController> GetAliveBlack() => aliveBlack;
 
-    public void ResetArena()
+    public void ClearArena()
     {
         matchEnded = false;
 
@@ -464,15 +467,15 @@ public class ArenaController : MonoBehaviour
             if (piece)
                 Destroy(piece.gameObject);
 
+        foreach (var clone in activeBlackClones)
+            if (clone)
+                Destroy(clone.gameObject);
+
         aliveBlack.Clear();
         activeBlackClones.Clear();
         cachedContexts.Clear();
         pieceSkills.Clear();
-
-        SpawnTeams();
-        CacheAllSkills();
-        BindPlayerCamera();
-        BindFPSUI();
+        outOfBoundsTimers.Clear();
     }
 
 #if UNITY_EDITOR

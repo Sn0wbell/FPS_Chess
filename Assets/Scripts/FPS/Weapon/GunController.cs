@@ -199,8 +199,6 @@ public class GunController : WeaponController
     }
     // --- EXTERNAL API ---
 
-    public FireMode GetFireMode() => currentFireMode;
-    public (int current, int total) GetAmmoStatus() => (currentAmmo, totalAmmo);
     public Vector2 GetAppliedRecoil() => appliedRecoil;
     public bool IsShooting() => isShooting;
     public bool IsReloading() => isReloading;
@@ -266,10 +264,12 @@ public class GunController : WeaponController
 
         UpdateAiming();
         UpdateCrosshairPoints();
+
+        HandleBurstFire();
+
         UpdateRecoil(deltaTime);
         UpdateSpread(deltaTime);
 
-        HandleBurstFire();
     }
     void UpdateAiming()
     {

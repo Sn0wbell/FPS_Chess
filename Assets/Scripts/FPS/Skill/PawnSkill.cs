@@ -28,7 +28,13 @@ public class PawnSkill : ActiveSkill
 
     private readonly List<PawnCloneHealth> activeClones = new();
     private PawnClonePool pool;
-
+    private void OnDestroy()
+    {
+        if (pool != null)
+        {
+            ClearExistingClones();
+        }
+    }
     private void Awake()
     {
         pool = new PawnClonePool(pawnClonePrefab, transform);

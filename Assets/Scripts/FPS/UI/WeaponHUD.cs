@@ -14,26 +14,30 @@ public class WeaponHUD : MonoBehaviour
 
     private void Start()
     {
-        if (weaponController != null && weaponDisplay3D != null)
-            weaponDisplay3D.SetWeaponModel(weaponController.weaponModelPrefab, weaponController.weaponDisplayScale);
-
-        if (weaponController is GunController) gunController = (GunController)weaponController;
-        else gunController = null;
+        UpdateUI();
     }
-    void OnEnable()
+    private void SubscribeGun()
     {
         if (gunController != null)
         {
+            gunController.onGunStatChange -= UpdateUI;
             gunController.onGunStatChange += UpdateUI;
-        }    
+        }
     }
-
-    void OnDisable()
+    void OnEnable()
+    {
+        SubscribeGun();
+    }
+    private void UnsubscribeGun()
     {
         if (gunController != null)
         {
             gunController.onGunStatChange -= UpdateUI;
         }
+    }
+    void OnDisable()
+    {
+        UnsubscribeGun();
     }
 
     void UpdateUI()
@@ -49,7 +53,6 @@ public class WeaponHUD : MonoBehaviour
             ammoText.text = "";
             fireModeText.text = "";
             weaponNameText.text = "";
-            SetWeapon(null);
             return;
         }
 
@@ -77,12 +80,27 @@ public class WeaponHUD : MonoBehaviour
 
     public void SetWeapon(WeaponController newWeapon)
     {
+        UnsubscribeGun();
+
         weaponController = newWeapon;
+        gunController = weaponController as GunController;
+
         if (weaponController != null)
         {
             weaponNameText.text = $"{weaponController.weaponName}";
 
             if (weaponDisplay3D != null) weaponDisplay3D.SetWeaponModel(weaponController.weaponModelPrefab, weaponController.weaponDisplayScale);
         }
+        else
+        {
+            weaponNameText.text = "";
+        }
+
+        if (isActiveAndEnabled)
+        {
+            SubscribeGun();
+        }
+
+        UpdateUI();
     }
 }

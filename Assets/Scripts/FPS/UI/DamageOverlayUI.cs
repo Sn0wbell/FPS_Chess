@@ -5,7 +5,6 @@ public class DamageOverlayUI : MonoBehaviour
 {
     [Header("Overlay Settings")]
     public RawImage overlayImage;
-    public float maxAlpha = 0.5f;   // intensity of flash
     public float fadeSpeed = 2f;    // how quickly it fades back to transparent
 
     private float currentAlpha = 0f;
@@ -17,15 +16,15 @@ public class DamageOverlayUI : MonoBehaviour
         // Gradually fade out
         if (currentAlpha > 0f)
         {
-            currentAlpha -= Time.deltaTime * fadeSpeed;
-            currentAlpha = Mathf.Clamp01(currentAlpha);
+            currentAlpha = Mathf.MoveTowards(currentAlpha, 0f, fadeSpeed * Time.deltaTime);
             overlayImage.color = new Color(1f, 0f, 0f, currentAlpha);
         }
     }
 
     public void Flash(float intensity)
     {
-        float alpha = maxAlpha * intensity;
+        if (overlayImage == null) return;
+
         currentAlpha = intensity ; // instantly flash to visible
         overlayImage.color = Color.Lerp(new Color(1f, 0f, 0f, 0f), new Color(1f, 0f, 0f, intensity), Mathf.Sin(currentAlpha * Mathf.PI));
     }

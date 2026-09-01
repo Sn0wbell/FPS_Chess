@@ -335,7 +335,7 @@ public class ChessPieceFPSController : MonoBehaviour
             if (Keyboard.current.bKey.wasPressedThisFrame)
             {
                 currentGun.SwitchFireMode();
-                Debug.Log("Switched fire mode to: " + currentGun.GetFirePointDistance());
+                Debug.Log("Switched fire mode to: " + currentGun.GetCurrentFireMode());
             }
 
             if (Keyboard.current.rKey.wasPressedThisFrame)
