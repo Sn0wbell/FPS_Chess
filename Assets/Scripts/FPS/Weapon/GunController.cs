@@ -32,6 +32,7 @@ public class GunController : WeaponController
     [SerializeField] protected float recoilHorizontal = 1.5f;
     [SerializeField] protected float recoilApplySpeed = 18f;
     [SerializeField] protected float recoilReturnSpeed = 22f;
+    [SerializeField] protected float recoilRecoveryDelay = 0.15f;
     public float aimRecoilMultiplier = 0.5f;
     [SerializeField]
     protected AnimationCurve verticalRecoilPattern =
@@ -571,19 +572,7 @@ public class GunController : WeaponController
         if (!applyRecoil)
             return false;
 
-        if (currentFireMode == FireMode.Auto &&
-            !triggerReleasedSinceLastShot &&
-            !requireTriggerReleaseAfterReload)
-        {
-            return false;
-        }
-
-        if (IsBurstActive())
-        {
-            return false;
-        }
-
-        return true;
+        return Time.time - lastRecoilShotTime >= recoilRecoveryDelay;
     }
     private void ApplyModelRecoil()
     {
