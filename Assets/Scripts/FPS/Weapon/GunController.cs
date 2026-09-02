@@ -104,7 +104,24 @@ public class GunController : WeaponController
 
     protected Vector3 defaultPosition;
     protected Vector3 aimPosition;
+    protected Quaternion defaultRotation;
 
+    [Header("Model Recoil")]
+    [SerializeField]
+    protected Vector3 modelRecoilPositionKick = new Vector3(0f, 0.005f, -0.035f);
+    [SerializeField]
+    protected Vector3 modelRecoilRotationKick = new Vector3(-2.0f, 0.35f, 0.5f);
+    [SerializeField] protected float modelRecoilPositionRecovery = 18f;
+    [SerializeField] protected float modelRecoilRotationRecovery = 20f;
+    [SerializeField] protected float modelRecoilAimMultiplier = 0.6f;
+
+    protected Vector3 modelRecoilPosition;
+    protected Vector3 modelRecoilPositionVelocity;
+
+    protected Vector3 modelRecoilRotation;
+    protected Vector3 modelRecoilRotationVelocity;
+
+    protected Vector3 currentModelPosition;
     protected RectTransform pointCenterScope;
     protected RectTransform pointTopScope;
     protected RectTransform pointBottomScope;
@@ -147,6 +164,9 @@ public class GunController : WeaponController
     {
         defaultPosition = transform.localPosition;
         aimPosition = transform.localPosition + aimOffset;
+
+        defaultRotation = transform.localRotation;
+        currentModelPosition = defaultPosition;
     }
     private void Start()
     {
@@ -213,7 +233,10 @@ public class GunController : WeaponController
         horizontalRecoilDirectionChangeChance = 0.5f;
         currentHorizontalRecoilDirection = Random.value < 0.5 ? 1f : -1f;
     }
-    public void SetAiming(bool aim) => isAiming = aim;
+    public void SetAiming(bool aim)
+    {  
+        isAiming = aim;
+    }
     public void SetCrosshair(RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
         pointCenterScope = centerScope;
@@ -246,10 +269,15 @@ public class GunController : WeaponController
         if (pointRightScope)
             pointRightScope.anchoredPosition = Vector2.Lerp(pointRightScope.anchoredPosition, new Vector2(spreadDistance, 0f), Time.deltaTime * smoothSpreadSpeed);
     }
+    public override void SetBlocked(bool blocked)
+    {
+        isBlocked = blocked;
+        if (isBlocked) CompleteBurst();
+    }
     public override void Tick(float deltaTime)
     {
 
-        if (firePoint == null)
+        if (attackPoint == null)
             return;
 
         if (currentAmmo <= 0 && !isReloading)
@@ -270,6 +298,8 @@ public class GunController : WeaponController
         UpdateRecoil(deltaTime);
         UpdateSpread(deltaTime);
 
+        UpdateModelPosition();
+
     }
     void UpdateAiming()
     {
@@ -283,8 +313,8 @@ public class GunController : WeaponController
             Time.deltaTime * aimSpeed
         );
 
-        transform.localPosition = Vector3.Lerp(
-            transform.localPosition,
+        currentModelPosition = Vector3.Lerp(
+            currentModelPosition,
             isAiming ? aimPosition : defaultPosition,
             Time.deltaTime * aimSpeed
         );
@@ -432,7 +462,7 @@ public class GunController : WeaponController
     }
     protected virtual bool Fire()
     {
-        if (bulletPrefab == null || firePoint == null) return false;
+        if (bulletPrefab == null || attackPoint == null) return false;
         if (currentAmmo <= 0 || isReloading) return false;
 
         currentAmmo--;
@@ -464,12 +494,14 @@ public class GunController : WeaponController
                 vertical
             );
 
+            ApplyModelRecoil();
+
             recoilShotIndex++;
             lastRecoilShotTime = Time.time;
         }
 
         // Spread
-        Quaternion bulletRotation = firePoint.rotation;
+        Quaternion bulletRotation = attackPoint.rotation;
         if (applySpread)
         {
             currentSpreadAngle = Mathf.Clamp(currentSpreadAngle + spreadIncreasePerShot, minSpreadAngle, maxSpreadAngle);
@@ -477,12 +509,12 @@ public class GunController : WeaponController
             float spreadRad = currentSpreadAngle * Mathf.Deg2Rad;
             Vector2 rand = Random.insideUnitCircle * Mathf.Tan(spreadRad);
 
-            Vector3 spreadDir = firePoint.forward + firePoint.up * rand.y + firePoint.right * rand.x;
+            Vector3 spreadDir = attackPoint.forward + attackPoint.up * rand.y + attackPoint.right * rand.x;
             bulletRotation = Quaternion.LookRotation(spreadDir.normalized);
         }
 
         // Spawn bullet
-        var bullet = BulletPoolManager.Instance.GetBullet(firePoint.position, bulletRotation);
+        var bullet = BulletPoolManager.Instance.GetBullet(attackPoint.position, bulletRotation);
         if (bullet.TryGetComponent<Bullet>(out var bulletScript))
         {
             bulletScript.Speed = bulletSpeed;
@@ -496,7 +528,7 @@ public class GunController : WeaponController
                 Vector3 shotDirection = bulletRotation * Vector3.forward;
                 bulletScript.Fire(shotDirection);
             }
-            else bulletScript.Fire(firePoint.forward);
+            else bulletScript.Fire(attackPoint.forward);
         }
 
         // Effects
@@ -548,6 +580,31 @@ public class GunController : WeaponController
 
         return true;
     }
+    private void ApplyModelRecoil()
+    {
+        Vector3 positionKick = modelRecoilPositionKick;
+        Vector3 rotationKick = modelRecoilRotationKick;
+
+        if (isAiming)
+        {
+            float multiplier = Mathf.Max(modelRecoilAimMultiplier, 0f);
+
+            positionKick *= multiplier;
+            rotationKick *= multiplier;
+        }
+
+        modelRecoilPosition += positionKick;
+        modelRecoilRotation += rotationKick;
+    }
+    private void UpdateModelPosition()
+    {
+        transform.localPosition =
+        currentModelPosition + modelRecoilPosition;
+
+        transform.localRotation =
+            defaultRotation *
+            Quaternion.Euler(modelRecoilRotation);
+    }    
     private void UpdateRecoil(float deltaTime)
     {
         if (!applyRecoil)
@@ -562,9 +619,6 @@ public class GunController : WeaponController
             deltaTime
         );
 
-        Quaternion recoilRotation = Quaternion.Euler(-appliedRecoil.y, appliedRecoil.x, 0f);
-        transform.localRotation = recoilRotation;
-
         if (ShouldRecoverRecoil())
         {
             float recoilRecovery =
@@ -578,6 +632,23 @@ public class GunController : WeaponController
                 recoilRecovery
             );
         }
+        modelRecoilPosition = Vector3.SmoothDamp(
+            modelRecoilPosition,
+            Vector3.zero,
+            ref modelRecoilPositionVelocity,
+            1f / Mathf.Max(modelRecoilPositionRecovery, 0.01f),
+            Mathf.Infinity,
+            deltaTime
+        );
+
+        modelRecoilRotation = Vector3.SmoothDamp(
+            modelRecoilRotation,
+            Vector3.zero,
+            ref modelRecoilRotationVelocity,
+            1f / Mathf.Max(modelRecoilRotationRecovery, 0.01f),
+            Mathf.Infinity,
+            deltaTime
+        );
     }
 
     private void UpdateSpread(float deltaTime)
@@ -622,8 +693,8 @@ public class GunController : WeaponController
 
 
     // --- INITIALIZATION ---
-    public override void BindFirePoint(Transform point)
+    public override void BindAttackPoint(Transform point)
     {
-        firePoint = point;
+        attackPoint = point;
     }
 }

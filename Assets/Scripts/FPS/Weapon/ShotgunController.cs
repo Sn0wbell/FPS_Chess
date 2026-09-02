@@ -23,7 +23,7 @@ public class ShotgunController : GunController
 
     protected override bool Fire()
     {
-        if (bulletPrefab == null || firePoint == null) return false;
+        if (bulletPrefab == null || attackPoint == null) return false;
         if (currentAmmo <= 0 || isReloading) return false;
 
         currentAmmo--;
@@ -60,7 +60,7 @@ public class ShotgunController : GunController
         // -----------------------------
         for (int i = 0; i < pelletCount; i++)
         {
-            Quaternion pelletRotation = firePoint.rotation;
+            Quaternion pelletRotation = attackPoint.rotation;
 
             if (applySpread)
             {
@@ -68,14 +68,14 @@ public class ShotgunController : GunController
                 Vector2 rand = Random.insideUnitCircle * Mathf.Tan(spreadRad);
 
                 Vector3 spreadDir =
-                    firePoint.forward +
-                    firePoint.up * rand.y +
-                    firePoint.right * rand.x;
+                    attackPoint.forward +
+                    attackPoint.up * rand.y +
+                    attackPoint.right * rand.x;
 
                 pelletRotation = Quaternion.LookRotation(spreadDir.normalized);
             }
 
-            var bullet = BulletPoolManager.Instance.GetBullet(firePoint.position, pelletRotation);
+            var bullet = BulletPoolManager.Instance.GetBullet(attackPoint.position, pelletRotation);
             if (bullet.TryGetComponent<Bullet>(out var bulletScript))
             {
                 bulletScript.Speed = bulletSpeed;
@@ -84,7 +84,7 @@ public class ShotgunController : GunController
                 bulletScript.MaxRange = range;
                 bulletScript.Source = gameObject;
 
-                bulletScript.Fire(firePoint.forward);
+                bulletScript.Fire(attackPoint.forward);
             }
         }
 

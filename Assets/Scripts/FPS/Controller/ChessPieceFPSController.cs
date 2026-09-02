@@ -59,7 +59,7 @@ public class ChessPieceFPSController : MonoBehaviour
     // WEAPON
     // =========================
     [Header("Weapon")]
-    [SerializeField] private Transform firePoint;
+    [SerializeField] private Transform attackPoint;
     [SerializeField] private Transform weaponHolder;
     [SerializeField] private Transform weaponBlockedPosition;
     [SerializeField] private Vector3 weaponHolderOffset = Vector3.zero;
@@ -249,19 +249,14 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     public void UpdateWeaponSystemPosition()
     {
-        if (firePoint == null || cameraPoint == null) return;
+        if (attackPoint == null || cameraPoint == null) return;
         if (currentGun != null)
         {
-            firePoint.position = cameraPoint.position + cameraPoint.forward * currentGun.GetFirePointDistance();
-            firePoint.forward = cameraPoint.forward;
+            attackPoint.position = cameraPoint.position + cameraPoint.forward * currentGun.GetFirePointDistance();
+            attackPoint.forward = cameraPoint.forward;
             weaponBlockCheckDistance = currentGun.GetFirePointDistance();
-            currentGun.BindFirePoint(firePoint);
+            currentGun.BindAttackPoint(attackPoint);
 
-            if (weaponBlockDelayTime > 0)
-            {
-                weaponBlockDelayTime -= Time.deltaTime;
-            }
-            else if (weaponBlockDelayTime < 0) weaponBlockDelayTime = 0;
             if(weaponBlockDelayTime == 0)
             {
                 weaponHolder.position = cameraPoint.position + cameraPoint.forward * weaponHolderOffset.z + cameraPoint.up * weaponHolderOffset.y + cameraPoint.right * weaponHolderOffset.x;
@@ -278,8 +273,6 @@ public class ChessPieceFPSController : MonoBehaviour
     {
         if (!weapon) return;
 
-        weaponHolder.forward = cameraPoint.forward;
-
         weaponObject = Instantiate(weapon, weaponHolder); ;
         weaponObject.SetActive(true);
         weaponObject.GetComponent<Rigidbody>().useGravity = false;
@@ -293,7 +286,7 @@ public class ChessPieceFPSController : MonoBehaviour
             currentGun = gun;
 
             currentGun.SetCrosshair(centerScope, topScope, bottomScope, leftScope, rightScope);
-            currentGun.BindFirePoint(firePoint);
+            currentGun.BindAttackPoint(attackPoint);
         }
 
         defaultWeaponLocalPos = weaponHolder.localPosition;
@@ -456,7 +449,7 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     void HandleWeaponBlock()
     {
-        if (currentWeapon == null || firePoint == null || cameraPoint == null) return;
+        if (currentWeapon == null || attackPoint == null || cameraPoint == null) return;
 
         bool blocked = Physics.SphereCast(
             cameraPoint.position, 0.035f, cameraPoint.forward,
@@ -466,7 +459,10 @@ public class ChessPieceFPSController : MonoBehaviour
 
         if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
 
-        if (blocked) weaponBlockDelayTime = Time.deltaTime * (weaponAdjustSpeed + 3);
+        if (blocked)
+        {
+            weaponBlockDelayTime = Time.deltaTime * weaponAdjustSpeed;
+        }
 
         if (blocked != currentWeapon.GetBlocked())
         {
@@ -476,10 +472,19 @@ public class ChessPieceFPSController : MonoBehaviour
         Vector3 targetPos = blocked ? weaponBlockedPosition.localPosition : defaultWeaponLocalPos;
         Quaternion targetRot = blocked ? weaponBlockedPosition.localRotation : defaultWeaponLocalRot;
 
-        currentWeaponLocalPos = Vector3.Lerp(currentWeaponLocalPos, targetPos, Time.deltaTime * weaponAdjustSpeed);
-        currentWeaponLocalRot = Quaternion.Slerp(currentWeaponLocalRot, targetRot, Time.deltaTime * weaponAdjustSpeed);
+        if(currentWeaponLocalPos != targetPos || currentWeaponLocalRot != targetRot)
+        {
+            currentWeaponLocalPos = Vector3.Lerp(currentWeaponLocalPos, targetPos, Time.deltaTime * weaponAdjustSpeed);
+            currentWeaponLocalRot = Quaternion.Slerp(currentWeaponLocalRot, targetRot, Time.deltaTime * weaponAdjustSpeed);
 
-        weaponHolder.SetLocalPositionAndRotation(currentWeaponLocalPos, currentWeaponLocalRot);
+            weaponHolder.SetLocalPositionAndRotation(currentWeaponLocalPos, currentWeaponLocalRot);
+
+            if (weaponBlockDelayTime > 0)
+            {
+                weaponBlockDelayTime -= Time.deltaTime;
+            }
+            if (weaponBlockDelayTime < 0) weaponBlockDelayTime = 0;
+        }
     }
 }
 public interface IAbortableMovementSkill

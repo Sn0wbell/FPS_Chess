@@ -17,12 +17,12 @@ public abstract class WeaponController : MonoBehaviour
     public GameObject weaponModelPrefab;
     public float weaponDisplayScale;
 
-    protected Transform firePoint;
+    protected Transform attackPoint;
     protected bool isBlocked;
 
-    public virtual void BindFirePoint(Transform point)
+    public virtual void BindAttackPoint(Transform point)
     {
-        firePoint = point;
+        attackPoint = point;
     }
 
     public virtual void SetBlocked(bool blocked)

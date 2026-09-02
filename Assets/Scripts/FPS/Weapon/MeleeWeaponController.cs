@@ -16,13 +16,13 @@ public class MeleeWeaponController : WeaponController
 
     public override void TryAttack()
     {
-        if (isBlocked || firePoint == null || Time.time < nextAttackTime)
+        if (isBlocked || attackPoint == null || Time.time < nextAttackTime)
             return;
 
         nextAttackTime = Time.time + 1f / attackRate;
         hitCache.Clear();
 
-        Vector3 origin = firePoint.position;
+        Vector3 origin = attackPoint.position;
         var hits = Physics.OverlapSphere(origin, range, hitMask, QueryTriggerInteraction.Ignore);
 
         foreach (var col in hits)
@@ -31,7 +31,7 @@ public class MeleeWeaponController : WeaponController
                 continue;
 
             Vector3 toTarget = (col.transform.position - origin).normalized;
-            if (Vector3.Angle(firePoint.forward, toTarget) > attackAngle * 0.5f)
+            if (Vector3.Angle(attackPoint.forward, toTarget) > attackAngle * 0.5f)
                 continue;
 
             if (col.TryGetComponent<IDamageable>(out var dmg) && hitCache.Add(dmg))
