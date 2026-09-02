@@ -321,6 +321,7 @@ public class ChessPieceFPSController : MonoBehaviour
             {
                 if(!currentGun.GetTriggerReleasedSinceLastShot()) currentGun.ResetHorizontalRecoilDirection();
                 currentGun.SetTriggerReleasedSinceLastShot(true);
+                currentGun.SetRequireTriggerReleaseAfterReload(false);
             }
 
             if (Keyboard.current == null) return;

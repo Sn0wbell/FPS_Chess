@@ -88,6 +88,7 @@ public class GunController : WeaponController
     protected float nextBurstTime;
     protected int shotsRemainingInBurst;
     protected bool triggerReleasedSinceLastShot = true;
+    protected bool requireTriggerReleaseAfterReload = false;
     protected bool isReloading = false;
     protected bool isShooting = false;
     protected bool isAiming = false;
@@ -228,6 +229,7 @@ public class GunController : WeaponController
         return triggerReleasedSinceLastShot;
     }
     public void SetTriggerReleasedSinceLastShot(bool pressed) => triggerReleasedSinceLastShot = pressed;
+    public void SetRequireTriggerReleaseAfterReload(bool require) => requireTriggerReleaseAfterReload = require;
     public void ResetHorizontalRecoilDirection()
     {
         horizontalRecoilDirectionChangeChance = 0.5f;
@@ -285,20 +287,20 @@ public class GunController : WeaponController
             StartReload();
         }
 
+        UpdateRecoil(deltaTime);
+        UpdateSpread(deltaTime);
+
+        UpdateCrosshairPoints();
+        UpdateModelPosition();
+
         if (isBlocked)
             return;
 
         isShooting = false;
 
         UpdateAiming();
-        UpdateCrosshairPoints();
 
         HandleBurstFire();
-
-        UpdateRecoil(deltaTime);
-        UpdateSpread(deltaTime);
-
-        UpdateModelPosition();
 
     }
     void UpdateAiming()
@@ -330,6 +332,8 @@ public class GunController : WeaponController
         switch (currentFireMode)
         {
             case FireMode.Auto:
+                if (requireTriggerReleaseAfterReload)
+                    break;
                 if (time >= nextTimeToFire)
                 {
                     if (Fire())
@@ -568,7 +572,8 @@ public class GunController : WeaponController
             return false;
 
         if (currentFireMode == FireMode.Auto &&
-            !triggerReleasedSinceLastShot)
+            !triggerReleasedSinceLastShot &&
+            !requireTriggerReleaseAfterReload)
         {
             return false;
         }
@@ -667,6 +672,7 @@ public class GunController : WeaponController
             {
                 CompleteBurst();
             }
+            requireTriggerReleaseAfterReload = true;
             StartCoroutine(Reload());
         }
     }
