@@ -56,6 +56,21 @@ public class ChessPieceFPSController : MonoBehaviour
     private float pitch;
 
     // =========================
+    // RECOIL SEQUENCE RECOVERY
+    // =========================
+    [Header("Recoil Sequence Recovery")]
+    [SerializeField] private float recoilSequenceInputEpsilon = 0.01f;
+
+    private bool recoilSequenceActive;
+    private bool recoilSequenceRecoveryActive;
+    private bool pendingRecoveryMouseBreak;
+
+    private float recoilSequenceBaselinePitch;
+    private float recoilSequenceTotalRecoil;
+    private float recoilSequenceTotalMousePitch;
+    private float recoilSequenceRecoveryTargetPitch;
+
+    // =========================
     // WEAPON
     // =========================
     [Header("Weapon")]
@@ -160,7 +175,12 @@ public class ChessPieceFPSController : MonoBehaviour
         }
 
         if (currentWeapon != null)
+        {
             currentWeapon.Tick(Time.deltaTime);
+
+            if (currentGun != null)
+                ProcessRecoilSequence(Time.deltaTime);
+        }
     }
 
     // =========================
@@ -350,9 +370,25 @@ public class ChessPieceFPSController : MonoBehaviour
         float mouseX = delta.x * mouseSensitivity * Time.deltaTime;
         float mouseY = delta.y * mouseSensitivity * Time.deltaTime;
 
+        bool meaningfulMouseInput =
+        Mathf.Abs(mouseX) > recoilSequenceInputEpsilon ||
+        Mathf.Abs(mouseY) > recoilSequenceInputEpsilon;
+
         yaw += mouseX;
         pitch -= mouseY;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+
+        if (recoilSequenceActive && meaningfulMouseInput)
+        {
+            recoilSequenceTotalMousePitch += mouseY;
+
+            if (recoilSequenceRecoveryActive)
+            {
+                pendingRecoveryMouseBreak = true;
+            }
+
+            RecalculateRecoilSequenceTarget();
+        }
 
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
@@ -366,7 +402,149 @@ public class ChessPieceFPSController : MonoBehaviour
 
         cameraPoint.rotation = lookRot;
     }
+    void StartRecoilSequence(float firstShotRecoil)
+    {
+        recoilSequenceActive = true;
+        recoilSequenceRecoveryActive = false;
+        pendingRecoveryMouseBreak = false;
 
+        // Baseline is the real player pitch at the moment of the first shot.
+        recoilSequenceBaselinePitch = pitch;
+
+        // The mouse input that happened before this first shot is already
+        // represented by the baseline and must NOT be counted again.
+        recoilSequenceTotalMousePitch = 0f;
+
+        recoilSequenceTotalRecoil = firstShotRecoil;
+
+        RecalculateRecoilSequenceTarget();
+    }
+
+    void EndRecoilSequence()
+    {
+        recoilSequenceActive = false;
+        recoilSequenceRecoveryActive = false;
+        pendingRecoveryMouseBreak = false;
+
+        recoilSequenceBaselinePitch = 0f;
+        recoilSequenceTotalRecoil = 0f;
+        recoilSequenceTotalMousePitch = 0f;
+        recoilSequenceRecoveryTargetPitch = 0f;
+    }
+
+    void RecalculateRecoilSequenceTarget()
+    {
+        if (!recoilSequenceActive)
+            return;
+
+        /*
+         * Final design:
+         *
+         * TargetRecoilSpace =
+         *     B + max(M, 0) + min(M + R, 0)
+         *
+         * Unity pitch uses the opposite sign convention for this space,
+         * therefore:
+         *
+         * TargetPitch =
+         *     B - max(M, 0) - min(M + R, 0)
+         */
+        float targetOffset =
+            Mathf.Max(recoilSequenceTotalMousePitch, 0f) +
+            Mathf.Min(
+                recoilSequenceTotalMousePitch + recoilSequenceTotalRecoil,
+                0f
+            );
+
+        recoilSequenceRecoveryTargetPitch =
+            Mathf.Clamp(
+                recoilSequenceBaselinePitch - targetOffset,
+                minPitch,
+                maxPitch
+            );
+    }
+
+    void ProcessRecoilSequence(float deltaTime)
+    {
+        bool shotThisFrame = currentGun.DidShootThisFrame();
+        float shotRecoil = currentGun.GetVerticalRecoilThisFrame();
+
+        if (shotThisFrame)
+        {
+            pendingRecoveryMouseBreak = false;
+
+            if (!recoilSequenceActive)
+            {
+                StartRecoilSequence(shotRecoil);
+            }
+            else
+            {
+                recoilSequenceTotalRecoil += shotRecoil;
+                RecalculateRecoilSequenceTarget();
+            }
+        }
+        else if (pendingRecoveryMouseBreak)
+        {
+            EndRecoilSequence();
+            return;
+        }
+
+        if (!recoilSequenceActive)
+            return;
+
+        if (!recoilSequenceRecoveryActive &&
+            currentGun.IsRecoilRecoveryReady())
+        {
+            recoilSequenceRecoveryActive = true;
+            RecalculateRecoilSequenceTarget();
+        }
+
+        if (!recoilSequenceRecoveryActive)
+            return;
+
+        Vector2 appliedRecoil = currentGun.GetAppliedRecoil();
+
+        float desiredPitch =
+            recoilSequenceRecoveryTargetPitch + appliedRecoil.y;
+
+        float recoverySpeed =
+            Mathf.Max(currentGun.GetRecoilReturnSpeed(), 0f);
+
+        float recoveryT =
+            1f - Mathf.Exp(-recoverySpeed * deltaTime);
+
+        pitch = Mathf.Lerp(
+            pitch,
+            desiredPitch,
+            recoveryT
+        );
+
+        pitch = Mathf.Clamp(
+            pitch,
+            minPitch,
+            maxPitch
+        );
+
+        float effectivePitch =
+            pitch - currentGun.GetAppliedRecoil().y;
+
+        bool pitchRecovered =
+            Mathf.Abs(
+                effectivePitch - recoilSequenceRecoveryTargetPitch
+            ) <= recoilSequenceInputEpsilon;
+
+        bool weaponRecoilRecovered =
+            Mathf.Abs(currentGun.GetAppliedRecoil().y)
+            <= recoilSequenceInputEpsilon;
+
+        if (!shotThisFrame &&
+            !pendingRecoveryMouseBreak &&
+            pitchRecovered &&
+            weaponRecoilRecovered)
+        {
+            EndRecoilSequence();
+        }
+    }
     // =========================
     // MOVEMENT OVERRIDE
     // =========================

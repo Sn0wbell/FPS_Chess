@@ -132,6 +132,11 @@ public class GunController : WeaponController
 
     private FireMode pendingFireMode;
     private bool hasPendingFireMode;
+
+    private int shotTelemetryFrame = -1;
+    private int shotsThisFrame;
+    private float verticalRecoilThisFrame;
+
     private bool IsBurstActive()
     {
         return currentFireMode == FireMode.Burst &&
@@ -219,11 +224,33 @@ public class GunController : WeaponController
     {
         return !isBlocked && !isReloading && currentAmmo > 0;
     }
-    // --- EXTERNAL API ---
 
+    // --- EXTERNAL API ---
     public Vector2 GetAppliedRecoil() => appliedRecoil;
     public bool IsShooting() => isShooting;
     public bool IsReloading() => isReloading;
+
+    public bool DidShootThisFrame()
+    {
+        return shotTelemetryFrame == Time.frameCount && shotsThisFrame > 0;
+    }
+
+    public float GetVerticalRecoilThisFrame()
+    {
+        return shotTelemetryFrame == Time.frameCount
+            ? verticalRecoilThisFrame
+            : 0f;
+    }
+
+    public bool IsRecoilRecoveryReady()
+    {
+        return ShouldRecoverRecoil();
+    }
+
+    public float GetRecoilReturnSpeed()
+    {
+        return recoilReturnSpeed;
+    }
 
     public bool GetTriggerReleasedSinceLastShot()
     {
@@ -473,6 +500,14 @@ public class GunController : WeaponController
         currentAmmo--;
         isShooting = true;
 
+        if (shotTelemetryFrame != Time.frameCount)
+        {
+            shotTelemetryFrame = Time.frameCount;
+            shotsThisFrame = 0;
+            verticalRecoilThisFrame = 0f;
+        }
+
+        shotsThisFrame++;
         NotifyHUD();
 
         // Recoil
@@ -490,6 +525,8 @@ public class GunController : WeaponController
             {
                 vertical *= aimRecoilMultiplier;
             }
+
+            verticalRecoilThisFrame += vertical;
 
             float horizontal =
                 GetHorizontalRecoilImpulse();
