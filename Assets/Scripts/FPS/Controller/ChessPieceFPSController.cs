@@ -69,6 +69,8 @@ public class ChessPieceFPSController : MonoBehaviour
     private float recoilSequenceTotalRecoil;
     private float recoilSequenceTotalMousePitch;
     private float recoilSequenceRecoveryTargetPitch;
+    private float recoilSequenceRecoveryPitch;
+    private bool recoilSequenceRecoveryPitchInitialized;
 
     // =========================
     // WEAPON
@@ -180,6 +182,11 @@ public class ChessPieceFPSController : MonoBehaviour
 
             if (currentGun != null)
                 ProcessRecoilSequence(Time.deltaTime);
+        }
+
+        if (currentGun != null)
+        {
+            ApplyCameraRotation();
         }
     }
 
@@ -392,12 +399,45 @@ public class ChessPieceFPSController : MonoBehaviour
 
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        Quaternion lookRot = Quaternion.Euler(pitch, yaw, 0f);
+        ApplyCameraRotation();
+    }
+    void ApplyCameraRotation()
+    {
+        Vector2 recoil = Vector2.zero;
 
         if (currentWeapon is GunController gun)
+            recoil = gun.GetAppliedRecoil();
+
+        Quaternion lookRot;
+
+        if (recoilSequenceRecoveryActive &&
+            !pendingRecoveryMouseBreak)
         {
-            Vector2 recoil = gun.GetAppliedRecoil();
-            lookRot *= Quaternion.Euler(-recoil.y, recoil.x, 0f);
+            lookRot = Quaternion.Euler(
+                recoilSequenceRecoveryPitch,
+                yaw,
+                0f
+            );
+
+            lookRot *= Quaternion.Euler(
+                0f,
+                recoil.x,
+                0f
+            );
+        }
+        else
+        {
+            lookRot = Quaternion.Euler(
+                pitch,
+                yaw,
+                0f
+            );
+
+            lookRot *= Quaternion.Euler(
+                -recoil.y,
+                recoil.x,
+                0f
+            );
         }
 
         cameraPoint.rotation = lookRot;
@@ -408,11 +448,8 @@ public class ChessPieceFPSController : MonoBehaviour
         recoilSequenceRecoveryActive = false;
         pendingRecoveryMouseBreak = false;
 
-        // Baseline is the real player pitch at the moment of the first shot.
         recoilSequenceBaselinePitch = pitch;
 
-        // The mouse input that happened before this first shot is already
-        // represented by the baseline and must NOT be counted again.
         recoilSequenceTotalMousePitch = 0f;
 
         recoilSequenceTotalRecoil = firstShotRecoil;
@@ -430,6 +467,7 @@ public class ChessPieceFPSController : MonoBehaviour
         recoilSequenceTotalRecoil = 0f;
         recoilSequenceTotalMousePitch = 0f;
         recoilSequenceRecoveryTargetPitch = 0f;
+        recoilSequenceRecoveryPitch = 0f;
     }
 
     void RecalculateRecoilSequenceTarget()
@@ -437,18 +475,6 @@ public class ChessPieceFPSController : MonoBehaviour
         if (!recoilSequenceActive)
             return;
 
-        /*
-         * Final design:
-         *
-         * TargetRecoilSpace =
-         *     B + max(M, 0) + min(M + R, 0)
-         *
-         * Unity pitch uses the opposite sign convention for this space,
-         * therefore:
-         *
-         * TargetPitch =
-         *     B - max(M, 0) - min(M + R, 0)
-         */
         float targetOffset =
             Mathf.Max(recoilSequenceTotalMousePitch, 0f) +
             Mathf.Min(
@@ -473,6 +499,7 @@ public class ChessPieceFPSController : MonoBehaviour
         {
             pendingRecoveryMouseBreak = false;
             recoilSequenceRecoveryActive = false;
+            recoilSequenceRecoveryPitchInitialized = false;
 
             if (!recoilSequenceActive)
             {
@@ -503,10 +530,15 @@ public class ChessPieceFPSController : MonoBehaviour
         if (!recoilSequenceRecoveryActive)
             return;
 
-        Vector2 appliedRecoil = currentGun.GetAppliedRecoil();
+        if (!recoilSequenceRecoveryPitchInitialized)
+        {
+            Vector2 appliedRecoil = currentGun.GetAppliedRecoil();
 
-        float effectivePitch =
-            pitch - appliedRecoil.y;
+            recoilSequenceRecoveryPitch =
+                pitch - appliedRecoil.y;
+
+            recoilSequenceRecoveryPitchInitialized = true;
+        }
 
         float recoverySpeed =
             Mathf.Max(currentGun.GetRecoilReturnSpeed(), 0f);
@@ -514,27 +546,16 @@ public class ChessPieceFPSController : MonoBehaviour
         float recoveryT =
             1f - Mathf.Exp(-recoverySpeed * deltaTime);
 
-        effectivePitch = Mathf.Lerp(
-            effectivePitch,
+        recoilSequenceRecoveryPitch = Mathf.Lerp(
+            recoilSequenceRecoveryPitch,
             recoilSequenceRecoveryTargetPitch,
             recoveryT
         );
 
-        pitch =
-            effectivePitch + appliedRecoil.y;
-
-        pitch = Mathf.Clamp(
-            pitch,
-            minPitch,
-            maxPitch
-        );
-
-        effectivePitch =
-            pitch - appliedRecoil.y;
-
         bool pitchRecovered =
             Mathf.Abs(
-                effectivePitch - recoilSequenceRecoveryTargetPitch
+                recoilSequenceRecoveryPitch -
+                recoilSequenceRecoveryTargetPitch
             ) <= recoilSequenceInputEpsilon;
 
         bool weaponRecoilRecovered =
