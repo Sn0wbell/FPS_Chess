@@ -472,6 +472,7 @@ public class ChessPieceFPSController : MonoBehaviour
         if (shotThisFrame)
         {
             pendingRecoveryMouseBreak = false;
+            recoilSequenceRecoveryActive = false;
 
             if (!recoilSequenceActive)
             {
@@ -504,8 +505,8 @@ public class ChessPieceFPSController : MonoBehaviour
 
         Vector2 appliedRecoil = currentGun.GetAppliedRecoil();
 
-        float desiredPitch =
-            recoilSequenceRecoveryTargetPitch + appliedRecoil.y;
+        float effectivePitch =
+            pitch - appliedRecoil.y;
 
         float recoverySpeed =
             Mathf.Max(currentGun.GetRecoilReturnSpeed(), 0f);
@@ -513,11 +514,14 @@ public class ChessPieceFPSController : MonoBehaviour
         float recoveryT =
             1f - Mathf.Exp(-recoverySpeed * deltaTime);
 
-        pitch = Mathf.Lerp(
-            pitch,
-            desiredPitch,
+        effectivePitch = Mathf.Lerp(
+            effectivePitch,
+            recoilSequenceRecoveryTargetPitch,
             recoveryT
         );
+
+        pitch =
+            effectivePitch + appliedRecoil.y;
 
         pitch = Mathf.Clamp(
             pitch,
@@ -525,8 +529,8 @@ public class ChessPieceFPSController : MonoBehaviour
             maxPitch
         );
 
-        float effectivePitch =
-            pitch - currentGun.GetAppliedRecoil().y;
+        effectivePitch =
+            pitch - appliedRecoil.y;
 
         bool pitchRecovered =
             Mathf.Abs(
@@ -534,8 +538,9 @@ public class ChessPieceFPSController : MonoBehaviour
             ) <= recoilSequenceInputEpsilon;
 
         bool weaponRecoilRecovered =
-            Mathf.Abs(currentGun.GetAppliedRecoil().y)
-            <= recoilSequenceInputEpsilon;
+            Mathf.Abs(
+                currentGun.GetAppliedRecoil().y
+            ) <= recoilSequenceInputEpsilon;
 
         if (!shotThisFrame &&
             !pendingRecoveryMouseBreak &&
