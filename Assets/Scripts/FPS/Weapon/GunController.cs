@@ -103,7 +103,8 @@ public class GunController : WeaponController
     protected float horizontalRecoilDirectionChangeChance;
     protected float currentHorizontalRecoilDirection;
     protected float lastRecoilShotTime = -Mathf.Infinity;
-
+    protected bool hasSequenceRecoveryTarget = false;
+    protected float sequenceRecoveryTargetY = 0f;
     protected Vector3 defaultPosition;
     protected Vector3 aimPosition;
     protected Quaternion defaultRotation;
@@ -224,7 +225,43 @@ public class GunController : WeaponController
     public Vector2 GetAppliedRecoil() => appliedRecoil;
     public bool IsShooting() => isShooting;
     public bool IsReloading() => isReloading;
+    public void SetSequenceRecoveryTarget(float targetY)
+    {
+        hasSequenceRecoveryTarget = true;
+        sequenceRecoveryTargetY = Mathf.Max(targetY, 0f);
+    }
+    public bool IsRecoilRecoveryActive()
+    {
+        return ShouldRecoverRecoil();
+    }
+    public bool IsSequenceRecoveryAtTarget(float targetY, float epsilon)
+    {
+        float actualTarget = hasSequenceRecoveryTarget
+            ? Mathf.Min(sequenceRecoveryTargetY, Mathf.Max(currentRecoil.y, 0f))
+            : 0f;
 
+        return
+            Mathf.Abs(currentRecoil.y - actualTarget) <= epsilon &&
+            Mathf.Abs(appliedRecoil.y - actualTarget) <= epsilon;
+    }
+    public float ConsumeSequenceVerticalRecoil()
+    {
+        float consumed = appliedRecoil.y;
+
+        currentRecoil.y = 0f;
+        appliedRecoil.y = 0f;
+        recoilVelocity.y = 0f;
+
+        hasSequenceRecoveryTarget = false;
+        sequenceRecoveryTargetY = 0f;
+
+        return consumed;
+    }
+    public void ClearSequenceRecoveryTarget()
+    {
+        hasSequenceRecoveryTarget = false;
+        sequenceRecoveryTargetY = 0f;
+    }
     public bool GetTriggerReleasedSinceLastShot()
     {
         return triggerReleasedSinceLastShot;
@@ -620,9 +657,20 @@ public class GunController : WeaponController
                     -Mathf.Max(recoilReturnSpeed, 0f) * deltaTime
                 );
 
+            Vector2 recoveryTarget = Vector2.zero;
+
+            if (hasSequenceRecoveryTarget)
+            {
+                recoveryTarget.y =
+                    Mathf.Min(
+                        Mathf.Max(sequenceRecoveryTargetY, 0f),
+                        Mathf.Max(currentRecoil.y, 0f)
+                    );
+            }
+
             currentRecoil = Vector2.Lerp(
                 currentRecoil,
-                Vector2.zero,
+                recoveryTarget,
                 recoilRecovery
             );
         }
