@@ -56,23 +56,6 @@ public class ChessPieceFPSController : MonoBehaviour
     private float pitch;
 
     // =========================
-    // RECOIL SEQUENCE RECOVERY
-    // =========================
-    [Header("Recoil Sequence Recovery")]
-    [SerializeField] private float recoilSequenceInputEpsilon = 0.01f;
-
-    private bool recoilSequenceActive;
-    private bool recoilSequenceRecoveryActive;
-    private bool pendingRecoveryMouseBreak;
-
-    private float recoilSequenceBaselinePitch;
-    private float recoilSequenceTotalRecoil;
-    private float recoilSequenceTotalMousePitch;
-    private float recoilSequenceRecoveryTargetPitch;
-    private float recoilSequenceRecoveryPitch;
-    private bool recoilSequenceRecoveryPitchInitialized;
-
-    // =========================
     // WEAPON
     // =========================
     [Header("Weapon")]
@@ -177,17 +160,7 @@ public class ChessPieceFPSController : MonoBehaviour
         }
 
         if (currentWeapon != null)
-        {
             currentWeapon.Tick(Time.deltaTime);
-
-            if (currentGun != null)
-                ProcessRecoilSequence(Time.deltaTime);
-        }
-
-        if (currentGun != null)
-        {
-            ApplyCameraRotation();
-        }
     }
 
     // =========================
@@ -377,200 +350,23 @@ public class ChessPieceFPSController : MonoBehaviour
         float mouseX = delta.x * mouseSensitivity * Time.deltaTime;
         float mouseY = delta.y * mouseSensitivity * Time.deltaTime;
 
-        bool meaningfulMouseInput =
-        Mathf.Abs(mouseX) > recoilSequenceInputEpsilon ||
-        Mathf.Abs(mouseY) > recoilSequenceInputEpsilon;
-
         yaw += mouseX;
         pitch -= mouseY;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
 
-        if (recoilSequenceActive && meaningfulMouseInput)
-        {
-            recoilSequenceTotalMousePitch += mouseY;
-
-            if (recoilSequenceRecoveryActive)
-            {
-                pendingRecoveryMouseBreak = true;
-            }
-
-            RecalculateRecoilSequenceTarget();
-        }
-
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
 
-        ApplyCameraRotation();
-    }
-    void ApplyCameraRotation()
-    {
-        Vector2 recoil = Vector2.zero;
+        Quaternion lookRot = Quaternion.Euler(pitch, yaw, 0f);
 
         if (currentWeapon is GunController gun)
-            recoil = gun.GetAppliedRecoil();
-
-        Quaternion lookRot;
-
-        if (recoilSequenceRecoveryActive &&
-            !pendingRecoveryMouseBreak)
         {
-            lookRot = Quaternion.Euler(
-                recoilSequenceRecoveryPitch,
-                yaw,
-                0f
-            );
-
-            lookRot *= Quaternion.Euler(
-                0f,
-                recoil.x,
-                0f
-            );
-        }
-        else
-        {
-            lookRot = Quaternion.Euler(
-                pitch,
-                yaw,
-                0f
-            );
-
-            lookRot *= Quaternion.Euler(
-                -recoil.y,
-                recoil.x,
-                0f
-            );
+            Vector2 recoil = gun.GetAppliedRecoil();
+            lookRot *= Quaternion.Euler(-recoil.y, recoil.x, 0f);
         }
 
         cameraPoint.rotation = lookRot;
     }
-    void StartRecoilSequence(float firstShotRecoil)
-    {
-        recoilSequenceActive = true;
-        recoilSequenceRecoveryActive = false;
-        pendingRecoveryMouseBreak = false;
 
-        recoilSequenceBaselinePitch = pitch;
-
-        recoilSequenceTotalMousePitch = 0f;
-
-        recoilSequenceTotalRecoil = firstShotRecoil;
-
-        RecalculateRecoilSequenceTarget();
-    }
-
-    void EndRecoilSequence()
-    {
-        recoilSequenceActive = false;
-        recoilSequenceRecoveryActive = false;
-        pendingRecoveryMouseBreak = false;
-
-        recoilSequenceBaselinePitch = 0f;
-        recoilSequenceTotalRecoil = 0f;
-        recoilSequenceTotalMousePitch = 0f;
-        recoilSequenceRecoveryTargetPitch = 0f;
-        recoilSequenceRecoveryPitch = 0f;
-    }
-
-    void RecalculateRecoilSequenceTarget()
-    {
-        if (!recoilSequenceActive)
-            return;
-
-        float targetOffset =
-            Mathf.Max(recoilSequenceTotalMousePitch, 0f) +
-            Mathf.Min(
-                recoilSequenceTotalMousePitch + recoilSequenceTotalRecoil,
-                0f
-            );
-
-        recoilSequenceRecoveryTargetPitch =
-            Mathf.Clamp(
-                recoilSequenceBaselinePitch - targetOffset,
-                minPitch,
-                maxPitch
-            );
-    }
-
-    void ProcessRecoilSequence(float deltaTime)
-    {
-        bool shotThisFrame = currentGun.DidShootThisFrame();
-        float shotRecoil = currentGun.GetVerticalRecoilThisFrame();
-
-        if (shotThisFrame)
-        {
-            pendingRecoveryMouseBreak = false;
-            recoilSequenceRecoveryActive = false;
-            recoilSequenceRecoveryPitchInitialized = false;
-
-            if (!recoilSequenceActive)
-            {
-                StartRecoilSequence(shotRecoil);
-            }
-            else
-            {
-                recoilSequenceTotalRecoil += shotRecoil;
-                RecalculateRecoilSequenceTarget();
-            }
-        }
-        else if (pendingRecoveryMouseBreak)
-        {
-            EndRecoilSequence();
-            return;
-        }
-
-        if (!recoilSequenceActive)
-            return;
-
-        if (!recoilSequenceRecoveryActive &&
-            currentGun.IsRecoilRecoveryReady())
-        {
-            recoilSequenceRecoveryActive = true;
-            RecalculateRecoilSequenceTarget();
-        }
-
-        if (!recoilSequenceRecoveryActive)
-            return;
-
-        if (!recoilSequenceRecoveryPitchInitialized)
-        {
-            Vector2 appliedRecoil = currentGun.GetAppliedRecoil();
-
-            recoilSequenceRecoveryPitch =
-                pitch - appliedRecoil.y;
-
-            recoilSequenceRecoveryPitchInitialized = true;
-        }
-
-        float recoverySpeed =
-            Mathf.Max(currentGun.GetRecoilReturnSpeed(), 0f);
-
-        float recoveryT =
-            1f - Mathf.Exp(-recoverySpeed * deltaTime);
-
-        recoilSequenceRecoveryPitch = Mathf.Lerp(
-            recoilSequenceRecoveryPitch,
-            recoilSequenceRecoveryTargetPitch,
-            recoveryT
-        );
-
-        bool pitchRecovered =
-            Mathf.Abs(
-                recoilSequenceRecoveryPitch -
-                recoilSequenceRecoveryTargetPitch
-            ) <= recoilSequenceInputEpsilon;
-
-        bool weaponRecoilRecovered =
-            Mathf.Abs(
-                currentGun.GetAppliedRecoil().y
-            ) <= recoilSequenceInputEpsilon;
-
-        if (!shotThisFrame &&
-            !pendingRecoveryMouseBreak &&
-            pitchRecovered &&
-            weaponRecoilRecovered)
-        {
-            EndRecoilSequence();
-        }
-    }
     // =========================
     // MOVEMENT OVERRIDE
     // =========================
