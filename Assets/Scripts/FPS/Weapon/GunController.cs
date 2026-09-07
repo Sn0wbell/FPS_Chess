@@ -331,10 +331,10 @@ public class GunController : WeaponController
         UpdateCrosshairPoints();
         UpdateModelPosition();
 
+        isShooting = false;
+
         if (isBlocked)
             return;
-
-        isShooting = false;
 
         UpdateAiming();
 

@@ -61,6 +61,7 @@ public class ChessPieceFPSController : MonoBehaviour
     private float recoilSequenceInputEpsilon = 0.05f;
 
     private bool recoilSequenceActive = false;
+    private bool recoilRecoveryInterruptedByWeaponState = false;
     private float recoilSequenceBaselinePitch;
     private float recoilSequenceUpwardPitch;
     private float recoilSequenceFrameStartPitch;
@@ -423,6 +424,12 @@ public class ChessPieceFPSController : MonoBehaviour
         if (currentGun == null)
             return;
 
+        if (currentGun.IsReloading() || currentGun.GetBlocked())
+        {
+            EndRecoilSequenceByWeaponInterruption();
+            return;
+        }
+
         bool recoveryActive =
             currentGun.IsRecoilRecoveryActive();
 
@@ -430,6 +437,10 @@ public class ChessPieceFPSController : MonoBehaviour
         {
             if (!recoilSequenceActive)
             {
+                recoilRecoveryInterruptedByWeaponState = false;
+
+                currentGun.ClearSequenceRecoveryTarget();
+
                 recoilSequenceActive = true;
 
                 recoilSequenceBaselinePitch =
@@ -479,10 +490,40 @@ public class ChessPieceFPSController : MonoBehaviour
             Mathf.Abs(recoilSequenceFramePitchDelta) >
                 recoilSequenceInputEpsilon;
     }
+    void EndRecoilSequenceByWeaponInterruption()
+    {
+        if (!recoilSequenceActive)
+            return;
+
+        recoilSequenceActive = false;
+        recoilSequenceBaselinePitch = pitch;
+        recoilSequenceUpwardPitch = 0f;
+        recoilRecoveryInterruptedByWeaponState = true;
+    }
     void FinalizeRecoilSequenceAfterWeaponTick(bool shotThisFrame)
     {
         if (currentGun == null)
             return;
+
+        if (currentGun.IsReloading() || currentGun.GetBlocked())
+        {
+            EndRecoilSequenceByWeaponInterruption();
+
+            if (recoilRecoveryInterruptedByWeaponState)
+            {
+                if (currentGun.IsSequenceRecoveryAtTarget(
+                        recoilSequenceRecoveryTargetY,
+                        recoilSequenceInputEpsilon))
+                {
+                    currentGun.ClearSequenceRecoveryTarget();
+
+                    recoilRecoveryInterruptedByWeaponState = false;
+                    recoilSequenceRecoveryTargetY = 0f;
+                }
+            }
+
+            return;
+        }
 
         if (shotThisFrame)
             return;
