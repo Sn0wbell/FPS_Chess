@@ -515,9 +515,14 @@ public class ChessPieceFPSController : MonoBehaviour
                         recoilSequenceRecoveryTargetY,
                         recoilSequenceInputEpsilon))
                 {
-                    currentGun.ClearSequenceRecoveryTarget();
+                    float consumeRecoil =
+                        currentGun.ConsumeSequenceVerticalRecoil();
+
+                    pitch -= consumeRecoil;
 
                     recoilRecoveryInterruptedByWeaponState = false;
+                    recoilSequenceBaselinePitch = pitch;
+                    recoilSequenceUpwardPitch = 0f;
                     recoilSequenceRecoveryTargetY = 0f;
                 }
             }
