@@ -234,6 +234,19 @@ public class GunController : WeaponController
     {
         return ShouldRecoverRecoil();
     }
+    public bool IsRecoilSequenceContinuationActive()
+    {
+        if (!applyRecoil)
+            return false;
+
+        return
+            Time.time - lastRecoilShotTime <=
+            recoilPatternResetDelay;
+    }
+    public float GetCurrentVerticalRecoil()
+    {
+        return Mathf.Max(currentRecoil.y, 0f);
+    }
     public bool IsSequenceRecoveryAtTarget(float targetY, float epsilon)
     {
         float actualTarget = hasSequenceRecoveryTarget

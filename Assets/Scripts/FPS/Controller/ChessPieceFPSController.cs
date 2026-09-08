@@ -62,6 +62,8 @@ public class ChessPieceFPSController : MonoBehaviour
 
     private bool recoilSequenceActive = false;
     private bool recoilRecoveryInterruptedByWeaponState = false;
+    private bool recoilSequenceHasUpwardIntent = false;
+    private bool recoilSequenceSuppressRecovery = false;
     private float recoilSequenceBaselinePitch;
     private float recoilSequenceUpwardPitch;
     private float recoilSequenceFrameStartPitch;
@@ -433,50 +435,83 @@ public class ChessPieceFPSController : MonoBehaviour
         bool recoveryActive =
             currentGun.IsRecoilRecoveryActive();
 
-        if (shotThisFrame)
+        bool continuationActive =
+            currentGun.IsRecoilSequenceContinuationActive();
+
+        if (shotThisFrame && !recoilSequenceActive)
         {
-            if (!recoilSequenceActive)
-            {
-                recoilRecoveryInterruptedByWeaponState = false;
+            recoilRecoveryInterruptedByWeaponState = false;
 
-                currentGun.ClearSequenceRecoveryTarget();
+            currentGun.ClearSequenceRecoveryTarget();
 
-                recoilSequenceActive = true;
+            recoilSequenceActive = true;
 
-                recoilSequenceBaselinePitch =
-                    recoilSequenceFrameStartPitch;
+            recoilSequenceBaselinePitch =
+                recoilSequenceFrameStartPitch;
 
-                recoilSequenceUpwardPitch = 0f;
-            }
-            if (recoilSequenceFramePitchDelta <
-                -recoilSequenceInputEpsilon)
-            {
-                recoilSequenceUpwardPitch +=
-                    -recoilSequenceFramePitchDelta;
-            }
-        }
-        else if (
-            recoilSequenceActive &&
-            recoveryActive &&
-            HasMeaningfulRecoilSequenceMouseInput()
-        )
-        {
-            EndRecoilSequenceByPlayerInput();
-            return;
+            recoilSequenceUpwardPitch = 0f;
+
+            recoilSequenceHasUpwardIntent = false;
+            recoilSequenceSuppressRecovery = false;
         }
 
         if (!recoilSequenceActive)
             return;
 
-        float desiredBaselinePitch =
-            recoilSequenceBaselinePitch -
-            recoilSequenceUpwardPitch;
+        if (recoilSequenceFramePitchDelta <
+            -recoilSequenceInputEpsilon)
+        {
+            recoilSequenceUpwardPitch +=
+                -recoilSequenceFramePitchDelta;
 
-        recoilSequenceRecoveryTargetY =
-            Mathf.Max(
-                0f,
-                pitch - desiredBaselinePitch
-            );
+            recoilSequenceHasUpwardIntent = true;
+        }
+        else if (
+            recoilSequenceFramePitchDelta >
+                recoilSequenceInputEpsilon &&
+            recoilSequenceHasUpwardIntent &&
+            pitch >
+                recoilSequenceBaselinePitch +
+                recoilSequenceInputEpsilon
+        )
+        {
+            recoilSequenceSuppressRecovery = true;
+        }
+
+        if (recoveryActive &&
+            !continuationActive
+        )
+        {
+            if (recoilSequenceSuppressRecovery)
+            {
+                EndRecoilSequenceByPlayerInput();
+                return;
+            }
+
+            if (HasMeaningfulRecoilSequenceMouseInput())
+            {
+                EndRecoilSequenceByPlayerInput();
+                return;
+            }
+        }
+
+        if (recoilSequenceSuppressRecovery)
+        {
+            recoilSequenceRecoveryTargetY =
+                currentGun.GetCurrentVerticalRecoil();
+        }
+        else
+        {
+            float desiredBaselinePitch =
+                recoilSequenceBaselinePitch -
+                recoilSequenceUpwardPitch;
+
+            recoilSequenceRecoveryTargetY =
+                Mathf.Max(
+                    0f,
+                    pitch - desiredBaselinePitch
+                );
+        }
 
         currentGun.SetSequenceRecoveryTarget(
             recoilSequenceRecoveryTargetY
@@ -496,8 +531,13 @@ public class ChessPieceFPSController : MonoBehaviour
             return;
 
         recoilSequenceActive = false;
+
         recoilSequenceBaselinePitch = pitch;
         recoilSequenceUpwardPitch = 0f;
+
+        recoilSequenceHasUpwardIntent = false;
+        recoilSequenceSuppressRecovery = false;
+
         recoilRecoveryInterruptedByWeaponState = true;
     }
     void FinalizeRecoilSequenceAfterWeaponTick(bool shotThisFrame)
@@ -515,15 +555,18 @@ public class ChessPieceFPSController : MonoBehaviour
                         recoilSequenceRecoveryTargetY,
                         recoilSequenceInputEpsilon))
                 {
-                    float consumeRecoil =
-                        currentGun.ConsumeSequenceVerticalRecoil();
+                    float consumeRecoil = currentGun.ConsumeSequenceVerticalRecoil();
 
                     pitch -= consumeRecoil;
 
                     recoilRecoveryInterruptedByWeaponState = false;
+
                     recoilSequenceBaselinePitch = pitch;
                     recoilSequenceUpwardPitch = 0f;
                     recoilSequenceRecoveryTargetY = 0f;
+
+                    recoilSequenceHasUpwardIntent = false;
+                    recoilSequenceSuppressRecovery = false;
                 }
             }
 
@@ -539,12 +582,16 @@ public class ChessPieceFPSController : MonoBehaviour
         if (!currentGun.IsRecoilRecoveryActive())
             return;
 
+        if (currentGun.IsRecoilSequenceContinuationActive())
+            return;
+
         if (!currentGun.IsSequenceRecoveryAtTarget(
                 recoilSequenceRecoveryTargetY,
                 recoilSequenceInputEpsilon))
         {
             return;
         }
+
         float consumedRecoil =
             currentGun.ConsumeSequenceVerticalRecoil();
 
@@ -566,9 +613,13 @@ public class ChessPieceFPSController : MonoBehaviour
     void ResetRecoilSequenceState()
     {
         recoilSequenceActive = false;
+
         recoilSequenceBaselinePitch = pitch;
         recoilSequenceUpwardPitch = 0f;
         recoilSequenceRecoveryTargetY = 0f;
+
+        recoilSequenceHasUpwardIntent = false;
+        recoilSequenceSuppressRecovery = false;
 
         if (currentGun != null)
             currentGun.ClearSequenceRecoveryTarget();
