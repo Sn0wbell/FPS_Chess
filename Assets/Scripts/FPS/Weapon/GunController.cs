@@ -33,7 +33,6 @@ public class GunController : WeaponController
     [SerializeField] protected float recoilApplySpeed = 18f;
     [SerializeField] protected float recoilReturnSpeed = 22f;
     [SerializeField] protected float recoilRecoveryDelay = 0.15f;
-    public float aimRecoilMultiplier = 0.5f;
     [SerializeField]
     protected AnimationCurve verticalRecoilPattern =
         new AnimationCurve(
@@ -50,6 +49,8 @@ public class GunController : WeaponController
     protected float horizontalRecoilRandomness = 0.35f;
     [SerializeField] protected float recoilPatternResetDelay = 0.25f;
     [SerializeField] protected float horizontalRecoilDirectionChangeChanceIncrease;
+    [SerializeField] private float noRecoveryDownwardRecoveryAmount = 5.0f;
+    public float aimRecoilMultiplier = 0.5f;
 
     [Header("Spread Settings")]
     [SerializeField] protected bool applySpread = true;
@@ -180,7 +181,10 @@ public class GunController : WeaponController
 
         ResetHorizontalRecoilDirection();
     }
-
+    public float GetNoRecoveryDownwardRecoveryAmount()
+    {
+        return noRecoveryDownwardRecoveryAmount;
+    }    
     public float GetFirePointDistance()
     {
         return firePointDistance;

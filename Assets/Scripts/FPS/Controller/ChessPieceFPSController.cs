@@ -59,7 +59,6 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     [Header("Recoid Sequence")]
     [SerializeField] private float recoilSequenceInputEpsilon = 0.05f;
-    [SerializeField] private float noRecoveryDownwardRecoveryAmount = 0.75f;
 
     private bool recoilSequenceActive = false;
     private bool recoilRecoveryInterruptedByWeaponState = false;
@@ -431,6 +430,23 @@ public class ChessPieceFPSController : MonoBehaviour
 
         if (currentGun.IsReloading() || currentGun.GetBlocked())
         {
+            if (recoilSequenceActive)
+            {
+                float curVerticalRecoil =
+                    currentGun.GetCurrentVerticalRecoil();
+
+                bool sequenceHasNoRecovery =
+                    recoilSequenceSuppressRecovery ||
+                    recoilSequenceRecoveryTargetY >
+                        curVerticalRecoil +
+                        recoilSequenceInputEpsilon;
+
+                if (sequenceHasNoRecovery)
+                {
+                    ActivateNoRecoveryDownwardRecovery();
+                }
+            }
+
             EndRecoilSequenceByWeaponInterruption();
             return;
         }
@@ -483,8 +499,7 @@ public class ChessPieceFPSController : MonoBehaviour
             recoilSequenceSuppressRecovery = true;
         }
 
-        float currentVerticalRecoil =
-    currentGun.GetCurrentVerticalRecoil();
+        float currentVerticalRecoil = currentGun.GetCurrentVerticalRecoil();
 
         float desiredBaselinePitch =
             recoilSequenceBaselinePitch -
@@ -496,28 +511,15 @@ public class ChessPieceFPSController : MonoBehaviour
                 pitch - desiredBaselinePitch
             );
 
-        bool wouldHaveNoRecovery =
-            recoilSequenceSuppressRecovery ||
-            normalRecoveryTargetY >=
-                currentVerticalRecoil -
-                recoilSequenceInputEpsilon;
+        bool wouldHaveNoRecovery = recoilSequenceSuppressRecovery || 
+            normalRecoveryTargetY > currentVerticalRecoil + recoilSequenceInputEpsilon;
 
         if (recoveryActive &&
             !continuationActive)
         {
             if (wouldHaveNoRecovery)
             {
-                if (!recoilSequenceVirtualRecoveryActive)
-                {
-                    recoilSequenceVirtualRecoveryActive = true;
-
-                    recoilSequenceVirtualRecoveryTargetY =
-                        Mathf.Max(
-                            0f,
-                            currentVerticalRecoil -
-                            noRecoveryDownwardRecoveryAmount
-                        );
-                }
+                ActivateNoRecoveryDownwardRecovery();
             }
             else if (HasMeaningfulRecoilSequenceMouseInput())
             {
@@ -546,6 +548,34 @@ public class ChessPieceFPSController : MonoBehaviour
             recoilSequenceRecoveryTargetY
         );
     }
+    void ActivateNoRecoveryDownwardRecovery()
+    {
+        if (currentGun == null)
+            return;
+
+        if (recoilSequenceVirtualRecoveryActive)
+            return;
+
+        float currentVerticalRecoil =
+            currentGun.GetCurrentVerticalRecoil();
+
+        recoilSequenceVirtualRecoveryActive = true;
+
+        recoilSequenceVirtualRecoveryTargetY =
+            Mathf.Max(
+                0f,
+                currentVerticalRecoil -
+                currentGun.GetNoRecoveryDownwardRecoveryAmount()
+            );
+
+        recoilSequenceRecoveryTargetY =
+            recoilSequenceVirtualRecoveryTargetY;
+
+        currentGun.SetSequenceRecoveryTarget(
+            recoilSequenceRecoveryTargetY
+        );
+    }
+
     bool HasMeaningfulRecoilSequenceMouseInput()
     {
         return
