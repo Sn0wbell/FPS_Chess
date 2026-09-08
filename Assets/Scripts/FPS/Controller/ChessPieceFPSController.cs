@@ -57,13 +57,16 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     // RECOIL SEQUENCE
     // =========================
-    [SerializeField]
-    private float recoilSequenceInputEpsilon = 0.05f;
+    [Header("Recoid Sequence")]
+    [SerializeField] private float recoilSequenceInputEpsilon = 0.05f;
+    [SerializeField] private float noRecoveryDownwardRecoveryAmount = 0.75f;
 
     private bool recoilSequenceActive = false;
     private bool recoilRecoveryInterruptedByWeaponState = false;
     private bool recoilSequenceHasUpwardIntent = false;
     private bool recoilSequenceSuppressRecovery = false;
+    private bool recoilSequenceVirtualRecoveryActive = false;
+    private float recoilSequenceVirtualRecoveryTargetY = 0f;
     private float recoilSequenceBaselinePitch;
     private float recoilSequenceUpwardPitch;
     private float recoilSequenceFrameStartPitch;
@@ -446,13 +449,15 @@ public class ChessPieceFPSController : MonoBehaviour
 
             recoilSequenceActive = true;
 
-            recoilSequenceBaselinePitch =
-                recoilSequenceFrameStartPitch;
+            recoilSequenceBaselinePitch = recoilSequenceFrameStartPitch;
 
             recoilSequenceUpwardPitch = 0f;
 
             recoilSequenceHasUpwardIntent = false;
             recoilSequenceSuppressRecovery = false;
+
+            recoilSequenceVirtualRecoveryActive = false;
+            recoilSequenceVirtualRecoveryTargetY = 0f;
         }
 
         if (!recoilSequenceActive)
@@ -478,39 +483,63 @@ public class ChessPieceFPSController : MonoBehaviour
             recoilSequenceSuppressRecovery = true;
         }
 
-        if (recoveryActive &&
-            !continuationActive
-        )
-        {
-            if (recoilSequenceSuppressRecovery)
-            {
-                EndRecoilSequenceByPlayerInput();
-                return;
-            }
+        float currentVerticalRecoil =
+    currentGun.GetCurrentVerticalRecoil();
 
-            if (HasMeaningfulRecoilSequenceMouseInput())
+        float desiredBaselinePitch =
+            recoilSequenceBaselinePitch -
+            recoilSequenceUpwardPitch;
+
+        float normalRecoveryTargetY =
+            Mathf.Max(
+                0f,
+                pitch - desiredBaselinePitch
+            );
+
+        bool wouldHaveNoRecovery =
+            recoilSequenceSuppressRecovery ||
+            normalRecoveryTargetY >=
+                currentVerticalRecoil -
+                recoilSequenceInputEpsilon;
+
+        if (recoveryActive &&
+            !continuationActive)
+        {
+            if (wouldHaveNoRecovery)
+            {
+                if (!recoilSequenceVirtualRecoveryActive)
+                {
+                    recoilSequenceVirtualRecoveryActive = true;
+
+                    recoilSequenceVirtualRecoveryTargetY =
+                        Mathf.Max(
+                            0f,
+                            currentVerticalRecoil -
+                            noRecoveryDownwardRecoveryAmount
+                        );
+                }
+            }
+            else if (HasMeaningfulRecoilSequenceMouseInput())
             {
                 EndRecoilSequenceByPlayerInput();
                 return;
             }
         }
 
-        if (recoilSequenceSuppressRecovery)
+        if (recoilSequenceVirtualRecoveryActive)
         {
             recoilSequenceRecoveryTargetY =
-                currentGun.GetCurrentVerticalRecoil();
+                recoilSequenceVirtualRecoveryTargetY;
+        }
+        else if (recoilSequenceSuppressRecovery)
+        {
+            recoilSequenceRecoveryTargetY =
+                currentVerticalRecoil;
         }
         else
         {
-            float desiredBaselinePitch =
-                recoilSequenceBaselinePitch -
-                recoilSequenceUpwardPitch;
-
             recoilSequenceRecoveryTargetY =
-                Mathf.Max(
-                    0f,
-                    pitch - desiredBaselinePitch
-                );
+                normalRecoveryTargetY;
         }
 
         currentGun.SetSequenceRecoveryTarget(
@@ -537,6 +566,9 @@ public class ChessPieceFPSController : MonoBehaviour
 
         recoilSequenceHasUpwardIntent = false;
         recoilSequenceSuppressRecovery = false;
+
+        recoilSequenceVirtualRecoveryActive = false;
+        recoilSequenceVirtualRecoveryTargetY = 0f;
 
         recoilRecoveryInterruptedByWeaponState = true;
     }
@@ -620,6 +652,9 @@ public class ChessPieceFPSController : MonoBehaviour
 
         recoilSequenceHasUpwardIntent = false;
         recoilSequenceSuppressRecovery = false;
+
+        recoilSequenceVirtualRecoveryActive = false;
+        recoilSequenceVirtualRecoveryTargetY = 0f;
 
         if (currentGun != null)
             currentGun.ClearSequenceRecoveryTarget();
