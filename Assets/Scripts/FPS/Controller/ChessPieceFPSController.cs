@@ -711,7 +711,7 @@ public class ChessPieceFPSController : MonoBehaviour
             verticalVelocity = Mathf.Sqrt(jump * -2f * gravity);
         }
 
-        if (useGravity)
+        if (useGravity && !isGrounded)
             verticalVelocity += gravity * Time.deltaTime;
 
         if (scatting)
