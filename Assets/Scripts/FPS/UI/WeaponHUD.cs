@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 public class WeaponHUD : MonoBehaviour
 {
@@ -8,6 +9,11 @@ public class WeaponHUD : MonoBehaviour
     public TextMeshProUGUI fireModeText;
     public TextMeshProUGUI weaponNameText;
     public WeaponDisplay3D weaponDisplay3D;
+
+    [Header("Reload Indicator")]
+    public GameObject reloadIndicator;
+    public Image reloadProgress;
+    public TextMeshProUGUI reloadCountdown;
 
     private WeaponController weaponController;
     private GunController gunController;
@@ -58,6 +64,7 @@ public class WeaponHUD : MonoBehaviour
 
         UpdateAmmoDisplay();
         UpdateFireModeDisplay();
+        if (gunController != null) UpdateReloadIndicator();
     }
 
     void UpdateAmmoDisplay()
@@ -102,5 +109,29 @@ public class WeaponHUD : MonoBehaviour
         }
 
         UpdateUI();
+    }
+    void UpdateReloadIndicator()
+    {
+        bool showIndicator =
+            gunController != null &&
+            gunController.IsReloading();
+
+        if (reloadIndicator != null)
+            reloadIndicator.SetActive(showIndicator);
+
+        if (!showIndicator)
+            return;
+
+        if (reloadProgress != null)
+        {
+            reloadProgress.fillAmount =
+                gunController.GetReloadProgress();
+        }
+
+        if (reloadCountdown != null)
+        {
+            reloadCountdown.text =
+                $"{gunController.GetReloadRemainingTime():0.0}";
+        }
     }
 }

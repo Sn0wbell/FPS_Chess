@@ -22,6 +22,7 @@ public abstract class BaseSkill : MonoBehaviour
     public float cooldown = 5f;
 
     protected SkillState state = SkillState.Ready;
+    protected float cooldownStartTime;
     protected float cooldownEndTime;
     protected SkillContext context;
 
@@ -37,6 +38,24 @@ public abstract class BaseSkill : MonoBehaviour
         OnActivate(context);
     }
 
+    public float CooldownProgress
+    {
+        get
+        {
+            if (state != SkillState.Cooldown)
+                return state == SkillState.Ready ? 1f : 0f;
+
+            if (cooldown <= 0f)
+                return 1f;
+
+            return Mathf.Clamp01(
+                (Time.time - cooldownStartTime) / cooldown
+            );
+        }
+    }
+
+    public float CooldownRemaining => state == SkillState.Cooldown ? Mathf.Max(0f, cooldownEndTime - Time.time) : 0f;
+
     protected abstract void OnActivate(in SkillContext ctx);
 
     protected virtual void OnCooldownStart() { }
@@ -44,6 +63,7 @@ public abstract class BaseSkill : MonoBehaviour
     protected void EnterCooldown()
     {
         state = SkillState.Cooldown;
+        cooldownStartTime = Time.time;
         cooldownEndTime = Time.time + cooldown;
         OnCooldownStart();
     }

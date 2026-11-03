@@ -42,7 +42,6 @@ public class BulletPoolManager : MonoBehaviour
 
         var bullet = available.Dequeue();
         bullet.transform.SetPositionAndRotation(position, rotation);
-        bullet.transform.localScale = Vector3.one;
         bullet.SetActive(true);
         return bullet;
     }

@@ -1,6 +1,8 @@
 ﻿using UnityEngine;
 using System;
 using System.Collections.Generic;
+using TMPro;
+using UnityEngine.UI;
 
 public enum Team
 {
@@ -37,6 +39,23 @@ public class ArenaController : MonoBehaviour
 
     [Header("FPS UI")]
     [SerializeField] private FPSCombatUIController fpsUI;
+
+    [Header("Skill Cooldown UI")]
+    [SerializeField] private Image skillProgressRing;
+    [SerializeField] private TextMeshProUGUI skillCountdownText;
+    [SerializeField] private TextMeshProUGUI skillStatusText;
+
+    [SerializeField]
+    private Color skillCooldownColor =
+        new Color(1f, 0.65f, 0.15f, 1f);
+
+    [SerializeField]
+    private Color skillReadyColor =
+        new Color(0.2f, 1f, 0.5f, 1f);
+
+    [SerializeField]
+    private Color skillActiveColor =
+        new Color(0.2f, 0.2f, 1f, 1f);
 
     [Header("Weapon HUD")]
     [SerializeField] private WeaponHUD weaponHUD;
@@ -89,6 +108,7 @@ public class ArenaController : MonoBehaviour
         if (matchEnded) return;
 
         TrackSkills();
+        UpdateSkillCooldownUI();
         CheckForDeadBlack();
 
         if (aliveBlack.Count == 0)
@@ -387,6 +407,100 @@ public class ArenaController : MonoBehaviour
                 if (ctx.controller == null || ctx.fps == null || ctx.transform == null) continue;
 
                 skill.Tick(ctx);
+            }
+        }
+    }
+    private BaseSkill GetPlayerSkillForUI()
+    {
+        if (!playerPiece)
+            return null;
+
+        if (!pieceSkills.TryGetValue(playerPiece, out var skills))
+            return null;
+
+        if (skills == null || skills.Count == 0)
+            return null;
+
+        // Ưu tiên kỹ năng đang hồi chiêu.
+        foreach (var skill in skills)
+        {
+            if (skill != null && skill.State == SkillState.Cooldown)
+                return skill;
+        }
+
+        // Nếu không có kỹ năng hồi chiêu, lấy kỹ năng đầu tiên.
+        return skills[0];
+    }
+
+    private void UpdateSkillCooldownUI()
+    {
+        BaseSkill skill = GetPlayerSkillForUI();
+
+        if (skill == null)
+        {
+            if (skillCountdownText != null)
+                skillCountdownText.text = "";
+
+            if (skillStatusText != null)
+                skillStatusText.text = "Skill unavailable";
+
+            if (skillProgressRing != null)
+            { 
+                skillProgressRing.fillAmount = 0f;
+                skillProgressRing.color = Color.gray;
+            }
+
+            return;
+        }
+
+        bool isReady = skill.State == SkillState.Ready;
+        bool isCoolingDown = skill.State == SkillState.Cooldown;
+
+        if (skillProgressRing != null)
+        {
+            skillProgressRing.enabled = true;
+
+            skillProgressRing.fillAmount = isReady
+                ? 1f
+                : skill.CooldownProgress;
+
+            skillProgressRing.color = isReady
+                ? skillReadyColor
+                : skillCooldownColor;
+
+            if (skill.State == SkillState.Active) skillProgressRing.color = skillActiveColor;
+        }
+
+        if (skillCountdownText != null)
+        {
+            skillCountdownText.text = isCoolingDown
+                ? $"{skill.CooldownRemaining:0.0}s"
+                : "F";
+
+            if (skill.State == SkillState.Active) skillCountdownText.text = "";
+        }
+
+        if (skillStatusText != null)
+        {
+            if (isReady)
+            {
+                skillStatusText.color = skillReadyColor;
+                skillStatusText.text = "Skill ready!";
+            }
+            else if (isCoolingDown)
+            {
+                skillStatusText.color = skillCooldownColor;
+                skillStatusText.text = "Skill cooldown...";
+            }
+            else if (skill.State == SkillState.Active)
+            {
+                skillStatusText.color = skillActiveColor;
+                skillStatusText.text = "Skill active...";
+            }
+            else
+            {
+                skillStatusText.color = Color.red;
+                skillStatusText.text = "Skill unavailable";
             }
         }
     }

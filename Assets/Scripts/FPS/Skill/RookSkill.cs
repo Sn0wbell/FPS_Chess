@@ -46,6 +46,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
     // =========================
     public bool IsActive => dashActive;
     public Vector3 GetMovementDelta(float deltaTime) => Vector3.zero;
+    public Vector3 GetChargeDirection() => dashDir;
     public void ForceCancelMovement() => StopDash();
 
     // =========================
@@ -116,8 +117,68 @@ public class RookSkill : ActiveSkill, IMovementOverride
     // =========================
     // ENEMY COLLISION
     // =========================
+    private void ResolveSkillClash(
+    ChessPieceFPSController otherFps,
+    ActiveSkill opposingSkill)
+    {
+        if (!dashActive || otherFps == null)
+            return;
+
+        Vector3 otherDirection = Vector3.zero;
+
+        if (opposingSkill is KnightSkill otherKnight)
+            otherDirection = otherKnight.GetChargeDirection();
+        else if (opposingSkill is RookSkill otherRook)
+            otherDirection = otherRook.GetChargeDirection();
+
+        if (otherDirection.sqrMagnitude < 0.001f)
+            return;
+
+        IDamageable myHealth = fps.GetComponent<IDamageable>();
+        IDamageable otherHealth = otherFps.GetComponent<IDamageable>();
+
+        if (otherHealth != null)
+        {
+            otherHealth.TakeDamage(new DamageInfo
+            {
+                amount = impactDamage,
+                hitPoint = otherFps.transform.position,
+                hitDirection = -dashDir,
+                source = gameObject,
+                type = DamageType.Melee
+            });
+        }
+
+        if (myHealth != null)
+        {
+            float myDamage = impactDamage;
+
+            if (opposingSkill is KnightSkill)
+                myDamage = (8f / 0.6f) * 1f; // Không nên dùng giá trị hard-code này.
+
+            myHealth.TakeDamage(new DamageInfo
+            {
+                amount = impactDamage,
+                hitPoint = fps.transform.position,
+                hitDirection = -otherDirection,
+                source = otherFps.gameObject,
+                type = DamageType.Melee
+            });
+        }
+
+        opposingSkill.ForceCancel();
+
+        fps.InterruptActiveMovementSkills();
+        otherFps.InterruptActiveMovementSkills();
+
+        fps.AddExternalImpulse(-otherDirection.normalized * pushForce);
+        otherFps.AddExternalImpulse(-dashDir.normalized * pushForce);
+    }
     private void HandleEnemyCollision()
     {
+        if (!dashActive)
+            return;
+
         var hits = Physics.OverlapSphere(
             controller.transform.position,
             1f,
@@ -126,24 +187,60 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         foreach (var col in hits)
         {
-            if (col.GetComponent<WallSegment>() != null) continue;
-            if (!col.TryGetComponent<IDamageable>(out var dmg)) continue;
-            if (!damagedThisDash.Add(dmg)) continue;
+            if (!dashActive)
+                return;
 
-            Vector3 dir =
-                (col.transform.position - controller.transform.position).normalized;
+            if (col.GetComponent<WallSegment>() != null)
+                continue;
+
+            if (!col.TryGetComponent<ChessPieceFPSController>(out var otherFps))
+                continue;
+
+            if (otherFps == fps)
+                continue;
+
+            // Kiểm tra đối phương đang dùng Knight/Rook.
+            ActiveSkill opposingMovementSkill = null;
+
+            foreach (var skill in otherFps.boundSkills)
+            {
+                if (skill == null || skill.State != SkillState.Active)
+                    continue;
+
+                if (skill is KnightSkill || skill is RookSkill)
+                {
+                    opposingMovementSkill = skill;
+                    break;
+                }
+            }
+
+            // CLASH.
+            if (opposingMovementSkill != null)
+            {
+                ResolveSkillClash(otherFps, opposingMovementSkill);
+                return;
+            }
+
+            // Va chạm thông thường.
+            IDamageable dmg = col.GetComponent<IDamageable>();
+
+            if (dmg == null || !damagedThisDash.Add(dmg))
+                continue;
+
+            Vector3 knockbackDirection = -dashDir;
+
+            otherFps.InterruptActiveMovementSkills();
+            otherFps.AddExternalImpulse(
+                knockbackDirection.normalized * pushForce);
 
             dmg.TakeDamage(new DamageInfo
             {
                 amount = impactDamage,
-                hitPoint = controller.transform.position,
-                hitDirection = dir,
+                hitPoint = col.ClosestPoint(controller.transform.position),
+                hitDirection = knockbackDirection,
                 source = gameObject,
                 type = DamageType.Melee
             });
-
-            if (col.attachedRigidbody != null)
-                col.attachedRigidbody.AddForce(dir * pushForce, ForceMode.Impulse);
         }
     }
 

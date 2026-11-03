@@ -1,5 +1,6 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
+using static UnityEditor.Searcher.SearcherWindow.Alignment;
 
 public enum FireMode
 {
@@ -49,8 +50,8 @@ public class GunController : WeaponController
     protected float horizontalRecoilRandomness = 0.35f;
     [SerializeField] protected float recoilPatternResetDelay = 0.25f;
     [SerializeField] protected float horizontalRecoilDirectionChangeChanceIncrease;
-    [SerializeField] private float noRecoveryDownwardRecoveryAmount = 5.0f;
-    public float aimRecoilMultiplier = 0.5f;
+    [SerializeField] protected float noRecoveryDownwardRecoveryAmount = 5.0f;
+    [SerializeField] protected float aimRecoilMultiplier = 0.5f;
 
     [Header("Spread Settings")]
     [SerializeField] protected bool applySpread = true;
@@ -59,6 +60,7 @@ public class GunController : WeaponController
     [SerializeField] protected float spreadIncreasePerShot = 0.35f;
     [SerializeField] protected float spreadReturnSpeed = 6f;
     [SerializeField] protected float spreadCrosshairSizePerAngle = 0f;
+    [SerializeField] protected float aimSpreadMultiplier = 0.5f;
 
     [Header("Ammo Settings")]
     [SerializeField] protected int magazineSize = 30;
@@ -68,10 +70,12 @@ public class GunController : WeaponController
 
     [Header("Aim Settings")]
     [SerializeField] protected bool hasScope = false;
-    [SerializeField] protected float aimFOV = 40f;
+    [SerializeField] protected float aimNoScopeFOV = 40f;
+    [SerializeField] protected float aimScopeFOV = 20f;
     [SerializeField] protected float normalFOV = 60f;
     [SerializeField] protected float aimSpeed = 10f;
-    [SerializeField] protected Vector3 aimOffset = Vector3.zero;
+    [SerializeField] protected Vector3 aimNoScopeOffset = Vector3.zero;
+    [SerializeField] protected Vector3 aimScopeOffset = Vector3.zero;
 
     [Header("Crosshair Settings")]
     [SerializeField] protected float smoothSpreadSpeed = 0f;
@@ -94,7 +98,7 @@ public class GunController : WeaponController
     protected bool isReloading = false;
     protected bool isShooting = false;
     protected bool isAiming = false;
-
+    private float reloadStartTime;
     protected float currentSpreadAngle;
 
     protected Vector2 currentRecoil;
@@ -107,7 +111,8 @@ public class GunController : WeaponController
     protected bool hasSequenceRecoveryTarget = false;
     protected float sequenceRecoveryTargetY = 0f;
     protected Vector3 defaultPosition;
-    protected Vector3 aimPosition;
+    protected Vector3 aimNoScopePosition;
+    protected Vector3 aimScopePosition;
     protected Quaternion defaultRotation;
 
     [Header("Model Recoil")]
@@ -167,7 +172,8 @@ public class GunController : WeaponController
     private void Awake()
     {
         defaultPosition = transform.localPosition;
-        aimPosition = transform.localPosition + aimOffset;
+        aimNoScopePosition = defaultPosition + aimNoScopeOffset;
+        aimScopePosition = defaultPosition + aimScopeOffset;
 
         defaultRotation = transform.localRotation;
         currentModelPosition = defaultPosition;
@@ -291,7 +297,7 @@ public class GunController : WeaponController
         currentHorizontalRecoilDirection = Random.value < 0.5 ? 1f : -1f;
     }
     public void SetAiming(bool aim)
-    {  
+    {
         isAiming = aim;
     }
     public void SetCrosshair(RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
@@ -350,10 +356,10 @@ public class GunController : WeaponController
 
         isShooting = false;
 
+        UpdateAiming();
+
         if (isBlocked)
             return;
-
-        UpdateAiming();
 
         HandleBurstFire();
 
@@ -361,7 +367,10 @@ public class GunController : WeaponController
     void UpdateAiming()
     {
         if (Camera.main == null) return;
-        if (isReloading) return;
+
+        isAiming = isAiming && !isReloading;
+
+        float aimFOV = hasScope ? aimScopeFOV : aimNoScopeFOV;
 
         float targetFOV = isAiming ? aimFOV : normalFOV;
         Camera.main.fieldOfView = Mathf.Lerp(
@@ -369,6 +378,8 @@ public class GunController : WeaponController
             targetFOV,
             Time.deltaTime * aimSpeed
         );
+
+        Vector3 aimPosition = hasScope ? aimScopePosition : aimNoScopePosition;
 
         currentModelPosition = Vector3.Lerp(
             currentModelPosition,
@@ -565,6 +576,11 @@ public class GunController : WeaponController
         {
             currentSpreadAngle = Mathf.Clamp(currentSpreadAngle + spreadIncreasePerShot, minSpreadAngle, maxSpreadAngle);
 
+            if (isAiming)
+            {
+                currentSpreadAngle *= aimSpreadMultiplier;
+            }
+
             float spreadRad = currentSpreadAngle * Mathf.Deg2Rad;
             Vector2 rand = Random.insideUnitCircle * Mathf.Tan(spreadRad);
 
@@ -718,6 +734,28 @@ public class GunController : WeaponController
     }
 
     // --- RELOAD ---
+    public float GetReloadProgress()
+    {
+        if (!isReloading)
+            return 0f;
+
+        if (reloadTime <= 0f)
+            return 1f;
+
+        return Mathf.Clamp01(
+            (Time.time - reloadStartTime) / reloadTime
+        );
+    }
+    public float GetReloadRemainingTime()
+    {
+        if (!isReloading)
+            return 0f;
+
+        return Mathf.Max(
+            0f,
+            reloadTime - (Time.time - reloadStartTime)
+        );
+    }
     public void StartReload()
     {
         if (!isReloading && currentAmmo < magazineSize && totalAmmo > 0)
@@ -736,6 +774,7 @@ public class GunController : WeaponController
         if (isReloading || currentAmmo == magazineSize || totalAmmo <= 0) yield break;
 
         isReloading = true;
+        reloadStartTime = Time.time;
         Debug.Log("Reloading...");
 
         yield return new WaitForSeconds(reloadTime);

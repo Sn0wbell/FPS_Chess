@@ -44,6 +44,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride
 
     public bool IsActive => leapActive;
     public Vector3 GetMovementDelta(float deltaTime) => Vector3.zero;
+    public Vector3 GetChargeDirection() => leapForward;
     public void ForceCancelMovement() => CleanupLeap();
 
     public override void Initialize(in SkillContext ctx)
@@ -181,43 +182,147 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride
     // =========================
     // COMBAT
     // =========================
-    private void ApplyPhysicsCollisionImpulse(
-        ChessPieceFPSController other,
-        Vector3 contactPoint)
+    private void ApplyCollisionImpulse(
+    ChessPieceFPSController other,
+    Vector3 direction)
     {
-        if (other == null || other == fps) return;
-        Vector3 normal = (fps.transform.position - contactPoint).normalized;
-        if (normal.sqrMagnitude < 0.0001f) return;
-        other.AddExternalImpulse(normal * impulseForce);
-    }
+        if (other == null || other == fps)
+            return;
 
+        other.InterruptActiveMovementSkills();
+        other.AddExternalImpulse(direction.normalized * impulseForce);
+    }
+    private void ResolveSkillClash(
+    ChessPieceFPSController otherFps,
+    ActiveSkill opposingSkill)
+    {
+        if (!leapActive || otherFps == null)
+            return;
+
+        Vector3 otherDirection = Vector3.zero;
+
+        if (opposingSkill is KnightSkill otherKnight)
+            otherDirection = otherKnight.GetChargeDirection();
+        else if (opposingSkill is RookSkill otherRook)
+            otherDirection = otherRook.GetChargeDirection();
+
+        if (otherDirection.sqrMagnitude < 0.001f)
+            return;
+
+        // Damage cả hai phía.
+        IDamageable myHealth = fps.GetComponent<IDamageable>();
+        IDamageable otherHealth = otherFps.GetComponent<IDamageable>();
+
+        float damage = (leapDistance / leapDuration) * impactDamageScale;
+
+        if (otherHealth != null)
+        {
+            otherHealth.TakeDamage(new DamageInfo
+            {
+                amount = damage,
+                hitPoint = otherFps.transform.position,
+                hitDirection = -leapForward,
+                source = gameObject,
+                type = DamageType.Melee
+            });
+        }
+
+        if (myHealth != null)
+        {
+            myHealth.TakeDamage(new DamageInfo
+            {
+                amount = damage,
+                hitPoint = fps.transform.position,
+                hitDirection = -otherDirection,
+                source = otherFps.gameObject,
+                type = DamageType.Melee
+            });
+        }
+
+        // Ngắt chuyển động skill của cả hai phía.
+        opposingSkill.ForceCancel();
+        fps.InterruptActiveMovementSkills();
+        otherFps.InterruptActiveMovementSkills();
+
+        // Hai phía văng ngược hướng lao tới của đối phương.
+        fps.AddExternalImpulse(-otherDirection.normalized * impulseForce);
+        otherFps.AddExternalImpulse(-leapForward.normalized * impulseForce);
+    }
     private void HandleMidAirEnemyCollision()
     {
-        if (controller == null) return;
+        if (!leapActive || controller == null)
+            return;
 
         float radius = controller.radius;
-        Vector3 bottom = new Vector3(transform.position.x, controller.bounds.min.y + radius, transform.position.z);
-        Vector3 top = new Vector3(transform.position.x, controller.bounds.max.y - radius, transform.position.z);
 
-        var hits = Physics.OverlapCapsule(bottom, top, radius, enemyMask, QueryTriggerInteraction.Ignore);
+        Vector3 bottom = new Vector3(
+            transform.position.x,
+            controller.bounds.min.y + radius,
+            transform.position.z);
+
+        Vector3 top = new Vector3(
+            transform.position.x,
+            controller.bounds.max.y - radius,
+            transform.position.z);
+
+        var hits = Physics.OverlapCapsule(
+            bottom,
+            top,
+            radius,
+            enemyMask,
+            QueryTriggerInteraction.Ignore);
+
         float speed = leapDistance / leapDuration;
 
         foreach (var col in hits)
         {
-            if (col.TryGetComponent<ChessPieceFPSController>(out var otherFps))
+            if (!leapActive)
+                return;
+
+            if (!col.TryGetComponent<ChessPieceFPSController>(out var otherFps))
+                continue;
+
+            if (otherFps == fps)
+                continue;
+
+            // Kiểm tra đối phương có đang dùng Knight/Rook dash không.
+            ActiveSkill opposingMovementSkill = null;
+
+            foreach (var skill in otherFps.boundSkills)
             {
-                if (otherFps == fps) continue;
-                ApplyPhysicsCollisionImpulse(otherFps, col.ClosestPoint(transform.position));
+                if (skill == null || skill.State != SkillState.Active)
+                    continue;
+
+                if (skill is KnightSkill || skill is RookSkill)
+                {
+                    opposingMovementSkill = skill;
+                    break;
+                }
             }
 
-            if (!col.TryGetComponent<IDamageable>(out var dmg)) continue;
-            if (!damagedTargets.Add(dmg)) continue;
+            // CLASH: Knight/Rook đang lao vào nhau.
+            if (opposingMovementSkill != null)
+            {
+                ResolveSkillClash(otherFps, opposingMovementSkill);
+                return;
+            }
+
+            // Va chạm thông thường: chỉ enemy nhận impulse và damage.
+            Vector3 knockbackDirection = -leapForward;
+
+            ApplyCollisionImpulse(otherFps, knockbackDirection);
+
+            if (!col.TryGetComponent<IDamageable>(out var dmg))
+                continue;
+
+            if (!damagedTargets.Add(dmg))
+                continue;
 
             dmg.TakeDamage(new DamageInfo
             {
                 amount = speed * impactDamageScale,
                 hitPoint = col.ClosestPoint(transform.position),
-                hitDirection = (col.transform.position - transform.position).normalized,
+                hitDirection = knockbackDirection,
                 source = gameObject,
                 type = DamageType.Melee
             });

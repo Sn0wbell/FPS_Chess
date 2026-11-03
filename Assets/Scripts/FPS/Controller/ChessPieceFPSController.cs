@@ -1,6 +1,7 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections.Generic;
+using static UnityEngine.EventSystems.StandaloneInputModule;
 
 public enum MovementOverrideSource
 {
@@ -36,6 +37,8 @@ public class ChessPieceFPSController : MonoBehaviour
     private float verticalVelocity;
     private bool isGrounded;
     private bool useGravity = true;
+    private bool isJumping;
+    private Vector3 jumpMoveDirection;
 
     // =========================
     // SCATTER / MULTI-FRAME IMPULSE
@@ -87,8 +90,13 @@ public class ChessPieceFPSController : MonoBehaviour
     private WeaponController currentWeapon;
     private GunController currentGun;
     private GameObject weaponObject;
+    private BoxCollider weaponBoxCollider;
     private float weaponBlockDelayTime = 0f;
     private float weaponBlockCheckDistance;
+    private readonly Collider[] weaponBlockOverlapBuffer = new Collider[32];
+    private Vector3 weaponBoxLocalCenter;
+    private Quaternion weaponBoxLocalRotation;
+    private Vector3 weaponBoxHalfExtents;
 
     private Vector3 defaultWeaponLocalPos;
     private Quaternion defaultWeaponLocalRot;
@@ -248,16 +256,29 @@ public class ChessPieceFPSController : MonoBehaviour
             s?.AbortMovement();
     }
 
-    public void WarpPosition(Vector3 worldPos)
+    public void WarpPosition(Vector3 pos)
     {
         controller.enabled = false;
-        transform.position = worldPos;
+        transform.position = pos;
         controller.enabled = true;
     }
 
     // =========================
     // SKILL INPUT
     // =========================
+    public void InterruptActiveMovementSkills()
+    {
+        foreach (var skill in boundSkills)
+        {
+            if (skill == null || skill.State != SkillState.Active)
+                continue;
+
+            if (skill is IMovementOverride)
+                skill.ForceCancel();
+        }
+
+        ForceStopAllMotion();
+    }
     public void AddExternalImpulse(Vector3 impulse)
     {
         scatterVelocityOwner = impulse;
@@ -293,14 +314,31 @@ public class ChessPieceFPSController : MonoBehaviour
             weaponBlockCheckDistance = currentGun.GetFirePointDistance();
             currentGun.BindAttackPoint(attackPoint);
 
-            if(weaponBlockDelayTime == 0)
+            Vector3 normalWeaponPosition = cameraPoint.position + cameraPoint.forward * weaponHolderOffset.z + cameraPoint.up * weaponHolderOffset.y + cameraPoint.right * weaponHolderOffset.x;
+
+            Quaternion normalWeaponRotation = cameraPoint.rotation;
+
+            Transform holderParent = weaponHolder.parent;
+
+            if (holderParent != null)
             {
-                weaponHolder.position = cameraPoint.position + cameraPoint.forward * weaponHolderOffset.z + cameraPoint.up * weaponHolderOffset.y + cameraPoint.right * weaponHolderOffset.x;
-                weaponHolder.forward = cameraPoint.forward;
-                defaultWeaponLocalPos = weaponHolder.localPosition;
-                defaultWeaponLocalRot = weaponHolder.localRotation;
+                defaultWeaponLocalPos = holderParent.InverseTransformPoint(normalWeaponPosition);
+
+                defaultWeaponLocalRot = Quaternion.Inverse(holderParent.rotation) * normalWeaponRotation;
+            }
+            else
+            {
+                defaultWeaponLocalPos = normalWeaponPosition;
+
+                defaultWeaponLocalRot = normalWeaponRotation;
+            }
+            if (weaponBlockDelayTime <= 0f && !currentWeapon.GetBlocked())
+            {
                 currentWeaponLocalPos = defaultWeaponLocalPos;
+
                 currentWeaponLocalRot = defaultWeaponLocalRot;
+
+                weaponHolder.SetLocalPositionAndRotation( currentWeaponLocalPos, currentWeaponLocalRot );
             }
         }
     }
@@ -308,13 +346,29 @@ public class ChessPieceFPSController : MonoBehaviour
     public void BindWeapon(GameObject weapon, RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
         if (!weapon) return;
-
-        weaponObject = Instantiate(weapon, weaponHolder); ;
+        weaponObject = Instantiate(weapon, weaponHolder);
         weaponObject.SetActive(true);
         weaponObject.GetComponent<Rigidbody>().useGravity = false;
         weaponObject.GetComponent<Rigidbody>().isKinematic = true;
         weaponObject.transform.SetParent(weaponHolder);
         weaponObject.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        weaponBoxCollider = weaponObject.GetComponent<BoxCollider>();
+
+        if (weaponBoxCollider != null)
+        {
+            Transform boxTransform = weaponBoxCollider.transform;
+
+            Vector3 weaponBoxCenter = boxTransform.TransformPoint( weaponBoxCollider.center );
+
+            weaponBoxLocalCenter = weaponHolder.InverseTransformPoint(weaponBoxCenter);
+
+            weaponBoxLocalRotation = Quaternion.Inverse(weaponHolder.rotation) * boxTransform.rotation;
+
+            Vector3 scale = boxTransform.lossyScale;
+
+            weaponBoxHalfExtents = Vector3.Scale( weaponBoxCollider.size * 0.5f, new Vector3( Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z) ) );
+        }
 
         currentWeapon = weaponObject.GetComponent<WeaponController>();
         if (currentWeapon is GunController gun)
@@ -693,6 +747,11 @@ public class ChessPieceFPSController : MonoBehaviour
     {
         isGrounded = controller.isGrounded;
 
+        if (isGrounded && verticalVelocity <= 0f)
+        {
+            isJumping = false;
+        }
+
         if (Keyboard.current == null) return;
 
         Vector2 input = Vector2.zero;
@@ -702,14 +761,19 @@ public class ChessPieceFPSController : MonoBehaviour
         if (Keyboard.current.dKey.isPressed) input.x += 1;
 
         input = Vector2.ClampMagnitude(input, 1f);
-        Vector3 move = transform.right * input.x + transform.forward * input.y;
+        Vector3 inputDirection = transform.right * input.x + transform.forward * input.y;
         float speed = hasMoveOverride ? moveSpeed * moveOverrideMul : moveSpeed;
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded)
         {
             float jump = hasMoveOverride ? jumpHeight * jumpOverrideMul : jumpHeight;
             verticalVelocity = Mathf.Sqrt(jump * -2f * gravity);
+
+            jumpMoveDirection = inputDirection;
+            isJumping = true;
         }
+
+        Vector3 moveDirection = isGrounded ? inputDirection : Vector3.zero;
 
         if (useGravity && !isGrounded)
             verticalVelocity += gravity * Time.deltaTime;
@@ -731,50 +795,142 @@ public class ChessPieceFPSController : MonoBehaviour
         }
         else
         {
-            controller.Move((move * speed + Vector3.up * verticalVelocity) * Time.deltaTime);
+            if (isJumping) moveDirection = jumpMoveDirection;
+            controller.Move((moveDirection * speed + Vector3.up * verticalVelocity) * Time.deltaTime);
         }
     }
 
     // =========================
     // WEAPON BLOCK
     // =========================
+    bool IsOwnCollider(Collider hit)
+    {
+        ChessPieceFPSController owner =
+            hit.GetComponent<ChessPieceFPSController>();
+
+        return owner == this;
+    }
+    bool IsWeaponColliderBlocked()
+    {
+        if (
+            weaponBoxCollider == null ||
+            cameraPoint == null
+        )
+        {
+            return false;
+        }
+
+        Vector3 normalWeaponPosition =
+            cameraPoint.position +
+            cameraPoint.forward * weaponHolderOffset.z +
+            cameraPoint.up * weaponHolderOffset.y +
+            cameraPoint.right * weaponHolderOffset.x;
+
+        Quaternion normalWeaponRotation =
+            cameraPoint.rotation;
+
+        Vector3 center =
+            normalWeaponPosition +
+            normalWeaponRotation *
+            weaponBoxLocalCenter;
+
+        Quaternion rotation =
+            normalWeaponRotation *
+            weaponBoxLocalRotation;
+
+        int overlapCount =
+            Physics.OverlapBoxNonAlloc(
+                center,
+                weaponBoxHalfExtents,
+                weaponBlockOverlapBuffer,
+                rotation,
+                weaponBlockLayer,
+                QueryTriggerInteraction.Ignore
+            );
+
+        for (int i = 0; i < overlapCount; i++)
+        {
+            Collider hit =
+                weaponBlockOverlapBuffer[i];
+
+            if (hit == null)
+                continue;
+
+            if (hit == weaponBoxCollider)
+                continue;
+
+            if (IsOwnCollider(hit))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
     void HandleWeaponBlock()
     {
         if (currentWeapon == null || attackPoint == null || cameraPoint == null) return;
 
-        bool blocked = Physics.SphereCast(
-            cameraPoint.position, 0.035f, cameraPoint.forward,
+        bool attackPointBlocked = Physics.SphereCast(
+            cameraPoint.position, 0.0005f, cameraPoint.forward,
             out _, weaponBlockCheckDistance, weaponBlockLayer,
             QueryTriggerInteraction.Ignore
         );
 
-        if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
+        bool weaponColliderBlocked = IsWeaponColliderBlocked();
 
-        if (blocked)
-        {
-            weaponBlockDelayTime = Time.deltaTime * weaponAdjustSpeed;
-        }
+        bool blocked = attackPointBlocked || weaponColliderBlocked;
+
+        if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
 
         if (blocked != currentWeapon.GetBlocked())
         {
             currentWeapon.SetBlocked(blocked);
+
+            float adjustSpeed = weaponAdjustSpeed;
+            if (blocked) adjustSpeed = weaponAdjustSpeed * 0.15f;
+            weaponBlockDelayTime = adjustSpeed > 0f ? 3f / adjustSpeed : 0f;
         }
 
         Vector3 targetPos = blocked ? weaponBlockedPosition.localPosition : defaultWeaponLocalPos;
         Quaternion targetRot = blocked ? weaponBlockedPosition.localRotation : defaultWeaponLocalRot;
-
+        
         if(currentWeaponLocalPos != targetPos || currentWeaponLocalRot != targetRot)
         {
-            currentWeaponLocalPos = Vector3.Lerp(currentWeaponLocalPos, targetPos, Time.deltaTime * weaponAdjustSpeed);
-            currentWeaponLocalRot = Quaternion.Slerp(currentWeaponLocalRot, targetRot, Time.deltaTime * weaponAdjustSpeed);
+            float adjustSpeed = weaponAdjustSpeed;
+            if (blocked) adjustSpeed = weaponAdjustSpeed * 0.15f;
+            currentWeaponLocalPos = Vector3.Lerp(currentWeaponLocalPos, targetPos, Time.deltaTime * adjustSpeed);
+            currentWeaponLocalRot = Quaternion.Slerp(currentWeaponLocalRot, targetRot, Time.deltaTime * adjustSpeed);
+
+            bool reachedTarget = Vector3.Distance( currentWeaponLocalPos, targetPos ) <= 0.005f;
+
+            if (reachedTarget)
+            {
+                currentWeaponLocalPos = targetPos;
+                currentWeaponLocalRot = targetRot;
+            }
 
             weaponHolder.SetLocalPositionAndRotation(currentWeaponLocalPos, currentWeaponLocalRot);
 
-            if (weaponBlockDelayTime > 0)
+            if (!blocked && reachedTarget)
+            {
+                weaponBlockDelayTime = 0f;
+            }
+            else if (weaponBlockDelayTime > 0f)
             {
                 weaponBlockDelayTime -= Time.deltaTime;
+
+                if (weaponBlockDelayTime <= 0f)
+                {
+                    weaponBlockDelayTime = 0f;
+                }
             }
-            if (weaponBlockDelayTime < 0) weaponBlockDelayTime = 0;
+        }
+        else if (!blocked)
+        {
+            weaponBlockDelayTime = 0f;
         }
     }
 }
