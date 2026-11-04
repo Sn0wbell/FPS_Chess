@@ -75,4 +75,42 @@ public static class SkillTargeting
         Vector3 d = to - from;
         return d.sqrMagnitude > 1e-6f ? d.normalized : fallback;
     }
+
+    /// <summary>
+    /// Collision between two pieces like billiard balls of equal mass (elastic), on the
+    /// horizontal plane: the velocity components along the line between the two centres are
+    /// exchanged, the sideways components are kept. A hit from the front sends the target
+    /// backwards, from the left sends it to the right, a glancing hit barely moves it.
+    /// Both bodies also bounce up by <paramref name="bounce"/> x the impact strength.
+    /// Velocities here are knock-back strengths (direction x force); a standing piece is zero.
+    /// </summary>
+    /// <returns>The impact strength (closing speed along the line of centres); 0 or less = no collision.</returns>
+    public static float BilliardCollision(Vector3 posA, Vector3 velA, Vector3 posB, Vector3 velB, float bounce,
+        out Vector3 newVelA, out Vector3 newVelB)
+    {
+        velA.y = 0f;
+        velB.y = 0f;
+
+        Vector3 n = posB - posA;
+        n.y = 0f;
+        if (n.sqrMagnitude < 1e-6f)
+        {
+            Vector3 rel = velA - velB; // exactly on top of each other: along the relative motion
+            n = rel.sqrMagnitude > 1e-6f ? rel : Vector3.forward;
+        }
+        n.Normalize();
+
+        float impact = Vector3.Dot(velA - velB, n); // closing speed along the line of centres
+        if (impact <= 0f)
+        {
+            newVelA = velA; // moving apart: no exchange
+            newVelB = velB;
+            return impact;
+        }
+
+        Vector3 up = Vector3.up * (bounce * impact);
+        newVelA = velA - n * impact + up;
+        newVelB = velB + n * impact + up;
+        return impact;
+    }
 }

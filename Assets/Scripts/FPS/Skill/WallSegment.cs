@@ -13,6 +13,10 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
     [Header("Health")]
     [SerializeField] private float maxHealth = 50f;
 
+    [Header("Physics")]
+    [Tooltip("Mass (kg). Same material as the pieces, about 10x a piece (~80 kg): bullets barely move it.")]
+    [SerializeField] private float mass = 800f;
+
     private float currentHealth;
     private RookSkill owner;
     private Team team;
@@ -23,6 +27,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
 
     public Team Team => team;
     public bool IsToppled { get; private set; }
+    public float CurrentHealth => currentHealth;
 
     private void Awake()
     {
@@ -31,6 +36,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
 
         col.isTrigger = false;
 
+        rb.mass = mass;
         rb.useGravity = false;
         rb.isKinematic = true;
         rb.constraints = RigidbodyConstraints.FreezeAll;

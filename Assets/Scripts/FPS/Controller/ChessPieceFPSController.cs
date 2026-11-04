@@ -441,8 +441,13 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
         ForceStopAllMotion();
     }
+    /// <summary>
+    /// Knock-back. A piece that is knocked loses its own leap / dash / grapple first
+    /// (one mover at a time); the new hit replaces any flight in progress.
+    /// </summary>
     public void AddExternalImpulse(Vector3 impulse)
     {
+        InterruptActiveMovementSkills();
         scatterVelocityOwner = impulse;
         scatting = true;
         scatterAirborne = false;

@@ -60,6 +60,9 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     public bool IsActive => leapActive;
     public Vector3 GetMovementDelta(float deltaTime) => Vector3.zero;
     public Vector3 GetChargeDirection() => leapForward;
+
+    /// <summary>Knock-back strength of this charge (used by the billiard-style clash).</summary>
+    public float ImpulseForce => impulseForce;
     public void ForceCancelMovement() => CleanupLeap();
 
     /// <summary>Damage of a mid-air hit (also used in clashes).</summary>
