@@ -15,16 +15,25 @@ public class QueenSkill : ActiveSkill
     private ChessPieceFPSController fps;
     private CharacterController controller;
 
+    // =========================
+    // TIMING
+    // =========================
     [Header("Timing")]
     [Tooltip("Base duration; the skill always lasts until its grenades have exploded.")]
     public float activeDuration = 4f;
     public float fireAnimationTime = 1f;
     public float redZoneWarningTime = 3f;
 
+    // =========================
+    // GRENADE / ZONE
+    // =========================
     [Header("Grenade Launcher Settings")]
     public int grenadeCount = 8;
     public float redZoneRadius = 3f;
 
+    // =========================
+    // PUSH
+    // =========================
     [Header("Push Settings")]
     public float pushRadius = 8f;
     public float maxPushHeight = 3.5f;
@@ -36,12 +45,18 @@ public class QueenSkill : ActiveSkill
     public LayerMask enemyLayer;
     public LayerMask obstacleLayer;
 
+    // =========================
+    // DAMAGE
+    // =========================
     [Header("Damage")]
     public AnimationCurve damageCurve;
     public float maxDamage = 50f;
     public float minDamage = 10f;
     public float heightRange = 4f;
 
+    // =========================
+    // VISUAL
+    // =========================
     [Header("Visual")]
     public GameObject redZonePrefab;
     public GameObject pushSpherePrefab;
@@ -49,7 +64,7 @@ public class QueenSkill : ActiveSkill
     public float sphereFadeStartNormalized = 0.55f;
 
     // =========================
-    // AI AWARENESS
+    // AI AWARENESS (UNCHANGED)
     // =========================
     public bool IsActiveRedZone => activeRedZones.Count > 0;
     public float RedZoneRadius => redZoneRadius;
@@ -79,7 +94,7 @@ public class QueenSkill : ActiveSkill
     // =========================
     // RUNTIME
     // =========================
-    private const float PathStep = 0.05f;
+    private const float PathStep = 0.05f; // parametric step
     private const float MaxPathParameter = 2.5f; // bounded: never loops forever
 
     private readonly List<RedZone> activeRedZones = new();
@@ -96,6 +111,9 @@ public class QueenSkill : ActiveSkill
     private bool barrageStarted;
     private bool attackLocked;
 
+    // =========================
+    // INTERNAL STRUCT
+    // =========================
     private struct PushSession
     {
         public Vector3[] path;
@@ -132,6 +150,7 @@ public class QueenSkill : ActiveSkill
         HandleDelayedPushes(ctx.deltaTime);
         UpdatePushMotion(ctx.deltaTime);
 
+        // Không có enemy hợp lệ để push → spawn red zone trực tiếp
         if (!barrageStarted && pendingPushes.Count == 0 && activePushes.Count == 0)
             StartBarrage();
     }
@@ -171,7 +190,7 @@ public class QueenSkill : ActiveSkill
                 continue;
 
             // The sphere reaches farther pieces later.
-            float delay = Vector3.Distance(center, target.transform.position) / Mathf.Max(0.01f, pushSphereScaleSpeed) * 2f;
+            float delay = (Vector3.Distance(center, target.transform.position) / pushSphereScaleSpeed) * 3.46f;
 
             pendingPushes.Add(new DelayedPush
             {
@@ -267,7 +286,7 @@ public class QueenSkill : ActiveSkill
     }
 
     // =========================
-    // BARRAGE
+    // RED ZONE LOGIC
     // =========================
     private void StartBarrage()
     {
@@ -314,6 +333,9 @@ public class QueenSkill : ActiveSkill
         FinishActive();
     }
 
+    // =========================
+    // POSITION CALCULATION
+    // =========================
     private List<Vector3> CalculateGrenadePositions()
     {
         List<Vector3> result = new();
@@ -344,13 +366,15 @@ public class QueenSkill : ActiveSkill
             .CompareTo(Vector3.Distance(fps.transform.position, b.transform.position)));
 
         int targetCount = Mathf.Min(maxTargets, enemies.Count);
-        int ringCount = Mathf.Max(0, budget / targetCount - 1);
+        int ringCount = budget / targetCount;
 
         for (int i = 0; i < targetCount && result.Count < budget; i++)
         {
             Vector3 center = enemies[i].transform.position;
+            // Core zone directly at enemy position
             TryAddZone(center);
 
+            // Ring zones around enemy (same Y as enemy)
             for (int r = 0; r < ringCount && result.Count < budget; r++)
             {
                 for (int attempt = 0; attempt < maxAttemptsPerZone; attempt++)
@@ -382,7 +406,7 @@ public class QueenSkill : ActiveSkill
     private void ApplyGrenadeDamage()
     {
         var targets = Object.FindObjectsByType<ChessPieceFPSController>(FindObjectsSortMode.None);
-        Dictionary<ChessPieceFPSController, (float dmg, Vector3 from)> damageMap = new();
+        Dictionary<ChessPieceFPSController, float> damageMap = new();
 
         foreach (var rz in activeRedZones)
         {
@@ -408,19 +432,18 @@ public class QueenSkill : ActiveSkill
                     : 1f - t;
 
                 float dmg = Mathf.Lerp(minDamage, maxDamage, curveValue);
-                if (!damageMap.TryGetValue(target, out var cur) || dmg > cur.dmg)
-                    damageMap[target] = (dmg, center);
+                if (!damageMap.TryGetValue(target, out var cur) || dmg > cur)
+                    damageMap[target] = dmg;
             }
         }
 
         foreach (var pair in damageMap)
         {
-            Vector3 travel = SkillTargeting.TravelDirection(pair.Value.from, pair.Key.transform.position, Vector3.up);
             SkillTargeting.TryDealDamage(fps, pair.Key.GetComponent<IDamageable>(), new DamageInfo
             {
-                amount = pair.Value.dmg,
-                hitPoint = pair.Key.transform.position,
-                hitDirection = travel,
+                amount = pair.Value,
+                hitPoint = Vector3.zero,
+                hitDirection = Vector3.up,
                 source = gameObject,
                 type = DamageType.Explosive
             });
@@ -494,11 +517,8 @@ public class QueenSkill : ActiveSkill
     }
 
     // =========================
-    // PARABOLA (bounded)
+    // PARABOLA
     // =========================
-    private Vector3[] BuildParabolicPath(Vector3 start, Vector3 desiredEnd) =>
-        BuildParabolicPath(start, desiredEnd, controller);
-
     private Vector3[] BuildParabolicPath(Vector3 start, Vector3 desiredEnd, CharacterController shape)
     {
         List<Vector3> points = new() { start };
@@ -514,8 +534,14 @@ public class QueenSkill : ActiveSkill
         float halfHeight = Mathf.Max(0f, height * 0.5f - radius);
 
         Vector3 prev = start;
-        for (float t = PathStep; t <= MaxPathParameter + 1e-4f; t += PathStep)
+        int steps = Mathf.RoundToInt(MaxPathParameter / PathStep);
+        int landingStep = Mathf.RoundToInt(1f / PathStep);
+        int pointsAtLanding = -1;
+        bool hitSomething = false;
+
+        for (int i = 1; i <= steps; i++)
         {
+            float t = i * PathStep;
             Vector3 pos = start + forward * (totalDistance * t);
             pos.y = start.y + 4f * maxPushHeight * t * (1f - t);
 
@@ -524,6 +550,7 @@ public class QueenSkill : ActiveSkill
 
             if (dist > 0f)
             {
+                // capsule tại vị trí PREV
                 Vector3 worldCenter = prev + centerOffset;
                 Vector3 p1 = worldCenter + Vector3.up * halfHeight;
                 Vector3 p2 = worldCenter - Vector3.up * halfHeight;
@@ -532,19 +559,27 @@ public class QueenSkill : ActiveSkill
                 {
                     // Stop just before the surface (the pivot, not the contact point).
                     points.Add(prev + delta / dist * Mathf.Max(0f, hit.distance - 0.05f));
+                    hitSomething = true;
                     break;
                 }
             }
 
             points.Add(pos);
             prev = pos;
+            if (i == landingStep)
+                pointsAtLanding = points.Count;
         }
+
+        // Nothing hit at all: stop at the planned landing point, at the start height
+        // (never keep falling far below the map).
+        if (!hitSomething && pointsAtLanding > 0 && pointsAtLanding < points.Count)
+            points.RemoveRange(pointsAtLanding, points.Count - pointsAtLanding);
 
         return points.ToArray();
     }
 
     // =========================
-    // HELPERS
+    // HELPERS (UNCHANGED)
     // =========================
     /// <summary>Keyed lock: never overrides the arena's own control flags (canAct).</summary>
     private void LockAttack(bool locked)

@@ -62,6 +62,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     private float traveled;
     private float totalDistance;
 
+    // Rope phase
     private float ropeTraveled;
     private bool ropeArrived;
     private bool isRetracting;
@@ -112,19 +113,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     {
         AcquireTarget();
 
-        if (mode == GrappleMode.PullEnemy && hasValidTarget)
-        {
-            // Another skill is already moving that piece: treat as a miss.
-            if (hookedEnemyFps == null || !hookedEnemyFps.TryBeginForcedMove(this))
-            {
-                hookedEnemyFps = null;
-                hasValidTarget = false;
-            }
-            else
-            {
-                hookedEnemyController = hookedEnemyFps.GetComponent<CharacterController>();
-            }
-        }
+        if (mode == GrappleMode.PullEnemy && hookedEnemyFps != null)
+            // Luôn thao tác trên root của enemy.
+            hookedEnemyController = hookedEnemyFps.GetComponent<CharacterController>();
 
         Transform visualOrigin = ropeStart ? ropeStart : transform;
         ropeLogicOriginWS = visualOrigin.position;
@@ -175,7 +166,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
         Vector3 visualOrigin = ropeStart ? ropeStart.position : transform.position;
 
-        // ---------- ROPE SHOOT ----------
+        // =========================
+        // ROPE SHOOT
+        // =========================
         if (!ropeArrived)
         {
             ropeTraveled += ropeShootSpeed * ctx.deltaTime;
@@ -220,19 +213,15 @@ public class BishopSkill : ActiveSkill, IMovementOverride
                 if (anchor)
                     anchor.position = targetPos;
 
-                if (mode == GrappleMode.PullSelf)
-                    fps.SetGravityEnabled(this, false);
-                else if (hookedEnemyFps != null)
-                {
-                    hookedEnemyFps.SuppressMovement(this);
-                    hookedEnemyFps.SetGravityEnabled(this, false);
-                }
+                fps.SetGravityEnabled(this, false);
             }
 
             return;
         }
 
-        // ---------- ROPE RETRACT (MISS) ----------
+        // =========================
+        // ROPE RETRACT (MISS)
+        // =========================
         if (isRetracting)
         {
             ropeTraveled -= ropeShootSpeed * ctx.deltaTime;
@@ -250,7 +239,12 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             return;
         }
 
-        // ---------- PULL ----------
+        // =========================
+        // PULL PHASE
+        // =========================
+
+        // Enemy pull follows rope retract speed.
+        // Self pull keeps its original pull speed.
         float step = (mode == GrappleMode.PullEnemy ? ropeShootSpeed : pullSpeed) * ctx.deltaTime;
         traveled += step;
         float pullT = Mathf.Clamp01(traveled / totalDistance);
@@ -267,35 +261,20 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             Vector3 enemyNext = Vector3.Lerp(enemy.position, transform.position, pullT);
             Vector3 moveDelta = enemyNext - enemy.position;
 
-            // Test at the body centre (whatever the pivot), not at the feet (always touching the floor).
-            Vector3 bodyOffset = hookedEnemyController.bounds.center - enemy.position;
-            if (Physics.CheckSphere(enemyNext + bodyOffset, 0.4f, obstacleMask, QueryTriggerInteraction.Ignore))
-            {
-                // Something is in the way: the rope slips, the pull stops here.
-                FinishActive();
-                return;
-            }
-
-            if (moveDelta.sqrMagnitude > 0.0001f)
+            if (moveDelta.sqrMagnitude > 0.0001f && !Physics.CheckSphere(enemyNext, 0.4f, obstacleMask))
                 hookedEnemyController.Move(moveDelta);
-
-            if (trailLR)
-            {
-                trailLR.SetPosition(0, visualOrigin);
-                trailLR.SetPosition(1, enemy.position);
-            }
         }
         else // PullSelf
         {
             Vector3 nextPos = Vector3.Lerp(pullStartPos, targetPos, pullT);
             Vector3 delta = nextPos - transform.position;
             controller.Move(Vector3.Lerp(Vector3.zero, delta, Mathf.Clamp01(16f * ctx.deltaTime)));
+        }
 
-            if (trailLR)
-            {
-                trailLR.SetPosition(0, visualOrigin);
-                trailLR.SetPosition(1, targetPos);
-            }
+        if (trailLR)
+        {
+            trailLR.SetPosition(0, visualOrigin);
+            trailLR.SetPosition(1, targetPos);
         }
 
         if (HandleImpact())
@@ -303,8 +282,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
         if (pullT >= 1f)
         {
-            if (mode == GrappleMode.PullSelf)
-                ResolveLanding();
+            ResolveLanding();
             FinishActive();
         }
     }
@@ -317,6 +295,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         if (target == null || target.boundSkills == null)
             return;
 
+        // Chỉ ngắt skill trực tiếp điều khiển movement.
         foreach (var skill in target.boundSkills)
             if (skill != null && skill.State == SkillState.Active && skill is IMovementOverride)
                 skill.ForceCancel();
@@ -335,16 +314,20 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         Transform aim = fps != null && fps.cameraPoint != null ? fps.cameraPoint : transform;
         Ray ray = new Ray(aim.position, aim.forward);
 
-        int mask = mapMask | enemyMask | wallMask;
-        RaycastHit[] hits = Physics.RaycastAll(ray, maxRange, mask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = Physics.RaycastAll(ray, maxRange);
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+        WeaponController heldWeapon = fps != null ? fps.GetCurrentWeapon() : null;
+        bool touchedSomething = false;
 
         foreach (RaycastHit hit in hits)
         {
-            // Skip our own colliders (body, weapon).
-            if (hit.collider.transform.IsChildOf(transform))
+            // Skip our own colliders and the weapon we are holding.
+            if (hit.collider.transform.IsChildOf(transform) ||
+                (heldWeapon != null && hit.collider.transform.IsChildOf(heldWeapon.transform)))
                 continue;
 
+            // The first other thing the rope touches decides (anything else is a miss).
+            touchedSomething = true;
             int layer = 1 << hit.collider.gameObject.layer;
             targetPos = hit.point;
 
@@ -364,10 +347,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             if ((layer & enemyMask) != 0)
             {
                 ChessPieceFPSController piece = SkillTargeting.PieceOf(hit.collider);
-                if (piece == null || piece == fps)
-                    continue;
-                if (!SkillTargeting.IsAlive(piece))
-                    continue;
+                if (piece == null || piece == fps || !SkillTargeting.IsAlive(piece))
+                    break; // nothing to pull: miss
 
                 mode = GrappleMode.PullEnemy;
                 hookedEnemyFps = piece;
@@ -382,11 +363,14 @@ public class BishopSkill : ActiveSkill, IMovementOverride
                 hasValidTarget = true;
                 return;
             }
+
+            break; // touched something that is not a target: miss
         }
 
-        // Nothing usable: shoot to max range and retract.
+        // Miss: the rope goes to what it touched (or to max range) and retracts.
         mode = GrappleMode.PullSelf;
-        targetPos = ray.origin + ray.direction * maxRange;
+        if (!touchedSomething)
+            targetPos = ray.origin + ray.direction * maxRange;
         hasValidTarget = false;
     }
 
@@ -409,11 +393,13 @@ public class BishopSkill : ActiveSkill, IMovementOverride
                 continue;
 
             IDamageable dmg = otherFps.GetComponent<IDamageable>();
+            // Đảm bảo mỗi enemy chỉ nhận impact một lần trong một lần kích hoạt.
             if (dmg == null || !hitCache.Add(dmg))
                 continue;
 
             Vector3 travel = SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward);
 
+            // Giữ nguyên damage formula hiện tại.
             SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
             {
                 amount = pullSpeed * impactDamageScale,
@@ -425,13 +411,17 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
             // Push it away (allies too). Release our own hold first so its flight is not frozen.
             ReleaseHookedEnemy();
+            // Ngắt riêng các skill đang trực tiếp điều khiển chuyển động.
             InterruptMovementSkills(otherFps);
+            // Dừng chuyển động hiện tại trước khi áp dụng lực đẩy.
             otherFps.ForceStopAllMotion();
 
+            // Đẩy enemy ra xa Bishop theo phương ngang.
             Vector3 push = new Vector3(travel.x, 0f, travel.z);
             if (push.sqrMagnitude < 1e-4f) push = new Vector3(transform.forward.x, 0f, transform.forward.z);
             otherFps.AddExternalImpulse(push.normalized * impactImpulseForce);
 
+            // Bishop không tiếp tục kéo enemy sau khi impact đã xảy ra.
             FinishActive();
             return true;
         }
@@ -455,12 +445,14 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             {
                 amount = pullSpeed * landingDamageScale,
                 hitPoint = col.ClosestPoint(transform.position),
-                hitDirection = Vector3.down, // slammed from above
+                hitDirection = Vector3.up,
                 source = gameObject,
                 type = DamageType.Melee
             });
 
-            otherFps.AddExternalImpulse(Vector3.up * landingKnockUp);
+            CharacterController cc = otherFps.GetComponent<CharacterController>();
+            if (cc != null)
+                cc.Move(Vector3.up * landingKnockUp * Time.deltaTime);
         }
     }
 
@@ -469,9 +461,6 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         if (hookedEnemyFps == null)
             return;
 
-        hookedEnemyFps.ReleaseMovementSuppression(this);
-        hookedEnemyFps.SetGravityEnabled(this, true);
-        hookedEnemyFps.EndForcedMove(this);
         hookedEnemyFps = null;
         hookedEnemyController = null;
     }

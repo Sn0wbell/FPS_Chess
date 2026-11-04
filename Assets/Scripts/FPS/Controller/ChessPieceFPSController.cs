@@ -89,6 +89,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     private float scatterGravity = -25f;
     private bool scatting = false;
     private bool scatterAirborne;
+    private bool fireHeldThroughBlock;
 
     [Header("Knock-back")]
     [Tooltip("Ground friction for horizontal knock-backs (higher = shorter slide).")]
@@ -263,7 +264,6 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         if (isDeadRaw) return;
         isDeadRaw = true;
 
-        DisableControl();
         foreach (var skill in boundSkills)
             if (skill != null)
                 skill.ForceCancel(); // releases every effect it put on other pieces
@@ -271,6 +271,9 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
     void Update()
     {
+        if (isDeadRaw && health != null && health.IsAlive)
+            isDeadRaw = false; // health was restored (ResetHealth / RestoreBaseMaxHealth)
+
         // Skills run even while the piece cannot be controlled (e.g. AI pieces), exactly once per frame.
         TickSkills();
 
@@ -435,13 +438,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
         ForceStopAllMotion();
     }
-    /// <summary>Knock-back. Hits that land while already flying add up instead of replacing each other.</summary>
     public void AddExternalImpulse(Vector3 impulse)
     {
-        if (!scatting)
-            scatterAirborne = false;
-        scatterVelocityOwner = scatting ? scatterVelocityOwner + impulse : impulse;
+        scatterVelocityOwner = impulse;
         scatting = true;
+        scatterAirborne = false;
     }
 
     public void ApplyExternalVerticalVelocity(float velocity)
@@ -551,7 +552,13 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         if (!canAct || currentWeapon == null) return;
         if (Mouse.current == null) return;
 
-        bool firePressed = !attackBlocked && Mouse.current.leftButton.isPressed;
+        bool fireHeld = Mouse.current.leftButton.isPressed;
+        if (!fireHeld)
+            fireHeldThroughBlock = false;
+        else if (attackBlocked)
+            fireHeldThroughBlock = true; // must release and press again once the block ends
+
+        bool firePressed = !attackBlocked && fireHeld && !fireHeldThroughBlock;
         bool aimPressed = !attackBlocked && Mouse.current.rightButton.isPressed;
 
         if (firePressed)
@@ -570,14 +577,14 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
                 currentGun.SetAiming(false);
             }
 
-            if (!firePressed)
+            if (!fireHeld)
             {
                 if(!currentGun.GetTriggerReleasedSinceLastShot()) currentGun.ResetHorizontalRecoilDirection();
                 currentGun.SetTriggerReleasedSinceLastShot(true);
                 currentGun.SetRequireTriggerReleaseAfterReload(false);
             }
 
-            if (Keyboard.current == null || attackBlocked) return;
+            if (Keyboard.current == null) return;
 
             if (Keyboard.current.bKey.wasPressedThisFrame)
             {

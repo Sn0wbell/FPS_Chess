@@ -26,6 +26,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
     [SerializeField] private float segmentSpacing = 0.5f;
     [SerializeField] private float segmentLifetime = 10f;
 
+    // =========================
+    // RUNTIME
+    // =========================
     private CharacterController controller;
     private ChessPieceFPSController fps;
 
@@ -33,6 +36,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
     private float traveled;
     private bool dashActive;
 
+    // WALL GEOMETRY
     private float segmentLength;
     private Vector3 currentSegmentHeadPos;
     private float distanceSinceLastSegment;
@@ -41,7 +45,6 @@ public class RookSkill : ActiveSkill, IMovementOverride
     private readonly List<WallSegment> activeSegments = new();
     private readonly Queue<WallSegment> pool = new();
     private readonly List<WallSegment> allSegments = new();
-    private readonly Collider[] overlapBuffer = new Collider[16];
 
     // =========================
     // IMovementOverride
@@ -54,6 +57,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
     /// <summary>Damage this charge deals in a clash.</summary>
     public float ImpactDamage => impactDamage;
 
+    // =========================
+    // INITIALIZATION
+    // =========================
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
@@ -81,6 +87,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         CacheSegmentLength();
 
+        // Old walls go first, so they never block the new dash.
+        ClearActiveSegments();
+
         // No direction or no room to start: nothing happens and no cooldown is spent.
         if (dashDir.sqrMagnitude < 0.01f || !HasSpaceAhead(controller.transform.position, dashDir, segmentLength))
         {
@@ -93,7 +102,6 @@ public class RookSkill : ActiveSkill, IMovementOverride
         currentSegmentHeadPos = controller.transform.position;
 
         damagedThisDash.Clear();
-        ClearActiveSegments();
 
         dashActive = true;
         fps?.SetGravityEnabled(this, false);
@@ -127,7 +135,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
     protected override void OnForceCancel(in SkillContext ctx) => StopDash();
 
     // =========================
-    // CLASH (two charges meet)
+    // ENEMY COLLISION
     // =========================
     private void ResolveSkillClash(ChessPieceFPSController otherFps, ActiveSkill opposingSkill)
     {
@@ -175,8 +183,8 @@ public class RookSkill : ActiveSkill, IMovementOverride
         fps.InterruptActiveMovementSkills();
         otherFps.InterruptActiveMovementSkills();
 
-        fps.AddExternalImpulse(otherDirection.normalized * pushForce);
-        otherFps.AddExternalImpulse(dashDir.normalized * pushForce);
+        fps.AddExternalImpulse(-otherDirection.normalized * pushForce);
+        otherFps.AddExternalImpulse(-dashDir.normalized * pushForce);
     }
 
     private void HandlePieceCollision()
@@ -184,15 +192,16 @@ public class RookSkill : ActiveSkill, IMovementOverride
         if (!dashActive)
             return;
 
-        int count = Physics.OverlapSphereNonAlloc(
-            controller.transform.position, 1f, overlapBuffer, enemyMask, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapSphere(
+            controller.transform.position, 1f, enemyMask, QueryTriggerInteraction.Ignore);
+        int count = hits.Length;
 
         for (int i = 0; i < count; i++)
         {
             if (!dashActive)
                 return;
 
-            Collider col = overlapBuffer[i];
+            Collider col = hits[i];
             if (col == null || col.GetComponent<WallSegment>() != null)
                 continue;
 
@@ -201,6 +210,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
                 continue;
 
             // Is the other piece charging too (Knight/Rook)?
+            // Kiểm tra đối phương đang dùng Knight/Rook.
             ActiveSkill opposingMovementSkill = null;
             foreach (var skill in otherFps.boundSkills)
             {
@@ -213,19 +223,21 @@ public class RookSkill : ActiveSkill, IMovementOverride
                 }
             }
 
+            // CLASH.
             if (opposingMovementSkill != null)
             {
                 ResolveSkillClash(otherFps, opposingMovementSkill);
                 return;
             }
 
+            // Va chạm thông thường.
             IDamageable dmg = otherFps.GetComponent<IDamageable>();
             if (dmg == null || !damagedThisDash.Add(dmg))
                 continue;
 
             // Knock-back applies to everyone (allies too); damage only to enemies.
             otherFps.InterruptActiveMovementSkills();
-            otherFps.AddExternalImpulse(dashDir * pushForce);
+            otherFps.AddExternalImpulse(-dashDir.normalized * pushForce);
 
             SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
             {
@@ -264,11 +276,12 @@ public class RookSkill : ActiveSkill, IMovementOverride
         float deltaH = controller.transform.position.y - centerPos.y;
         centerPos += Vector3.up * deltaH;
 
-        int count = Physics.OverlapSphereNonAlloc(centerPos, obstacleCheckRadius, overlapBuffer, obstacleMask, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapSphere(centerPos, obstacleCheckRadius, obstacleMask, QueryTriggerInteraction.Ignore);
+        int count = hits.Length;
         for (int i = 0; i < count; i++)
         {
             // Floors are fine; anything upright (a wall) blocks the segment.
-            if (Vector3.Dot(overlapBuffer[i].transform.up, Vector3.up) > 0.35f)
+            if (Vector3.Dot(hits[i].transform.up, Vector3.up) > 0.35f)
                 continue;
             return;
         }
@@ -307,6 +320,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
     /// (Before: the hit point of a sphere cast from the pivot is always at pivot height, so
     /// every wall looked like a "step" and never stopped the charge.)
     /// </summary>
+    // =========================
+    // OBSTACLE CHECK
+    // =========================
     private bool HasSpaceAhead(Vector3 origin, Vector3 dir, float distance)
     {
         float stepOffset = controller != null ? controller.stepOffset : 0.3f;
@@ -316,6 +332,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
         return !Physics.SphereCast(castOrigin, obstacleCheckRadius, dir, out _, distance, obstacleMask, QueryTriggerInteraction.Ignore);
     }
 
+    // =========================
+    // SEGMENT LENGTH CACHE
+    // =========================
     private void CacheSegmentLength()
     {
         segmentLength = segmentPrefab ? Mathf.Max(0.1f, segmentPrefab.transform.localScale.z) : 1f;
@@ -382,6 +401,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
     }
 }
 
+// =========================
+// HELPER EXT
+// =========================
 static class VectorExt
 {
     public static Vector3 Abs(this Vector3 v)

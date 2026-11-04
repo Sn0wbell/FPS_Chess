@@ -88,17 +88,23 @@ public class ArenaController : MonoBehaviour
     private bool matchEnded = false;
     private bool playerSpawned = false;
 
+    /// <summary>The arena currently running (null when none).</summary>
+    public static ArenaController Current { get; private set; }
+
     // =========================
     // UNITY CALLBACKS
     // =========================
     void Awake()
     {
+        Current = this;
         SpawnTeams();
         BindPlayerCamera();
         BindFPSUI();
     }
     private void OnDestroy()
     {
+        if (Current == this)
+            Current = null;
         ClearArena();
     }
     void Update()
@@ -179,9 +185,36 @@ public class ArenaController : MonoBehaviour
         // Fallback
         piece.gameObject.SetActive(false);
     }
+    /// <summary>
+    /// The arena area: the real world size of the object assigned to arenaBoundary
+    /// (same box the out-of-bounds rule and the spawns use).
+    /// </summary>
+    public bool TryGetBounds(out Bounds bounds)
+    {
+        if (!arenaBoundary)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = GetBoundaryBounds();
+        return true;
+    }
+
+    public static bool ContainsXZ(Bounds b, Vector3 p, float margin = 0f) =>
+        p.x >= b.min.x + margin && p.x <= b.max.x - margin && p.z >= b.min.z + margin && p.z <= b.max.z - margin;
+
+    /// <summary>Where a body thrown with this velocity lands back at its start height (gravity &lt; 0).</summary>
+    public static Vector3 PredictLanding(Vector3 start, Vector3 velocity, float gravity)
+    {
+        float flight = velocity.y > 0f ? 2f * velocity.y / Mathf.Max(0.01f, -gravity) : 0f;
+        return start + new Vector3(velocity.x, 0f, velocity.z) * flight;
+    }
+
     private Bounds GetBoundaryBounds()
     {
-        Vector3 size = arenaBoundary.localScale;
+        Vector3 s = arenaBoundary.lossyScale; // world size, whatever the parents' scale
+        Vector3 size = new Vector3(Mathf.Abs(s.x), Mathf.Abs(s.y), Mathf.Abs(s.z));
         Vector3 center = arenaBoundary.position;
         return new Bounds(center, size);
     }

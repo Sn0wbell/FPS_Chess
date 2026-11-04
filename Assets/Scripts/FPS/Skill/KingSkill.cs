@@ -11,6 +11,9 @@ using UnityEngine;
 /// </summary>
 public class KingSkill : ActiveSkill
 {
+    // =========================
+    // REFERENCES
+    // =========================
     private ChessPieceFPSController fps;
     private CharacterController controller;
 
@@ -26,13 +29,22 @@ public class KingSkill : ActiveSkill
     [Tooltip("Path points advanced per frame at 60 FPS (frame-rate independent).")]
     [SerializeField] private float pullSpeed = 0.1f;
 
+    // =========================
+    // GRAVITY DEBUFF
+    // =========================
     [Header("Gravity Debuff")]
     [SerializeField] private float moveMultiplier = 0.4f;
     [SerializeField] private float jumpMultiplier = 0.25f;
 
+    // =========================
+    // ACTIVE
+    // =========================
     [Header("Active")]
     [SerializeField] private float activeDuration = 4f;
 
+    // =========================
+    // VISUAL
+    // =========================
     [Header("Visual Zones")]
     [SerializeField] private Zone pullZonePrefab;
     [SerializeField] private Zone gravityZonePrefab;
@@ -46,6 +58,9 @@ public class KingSkill : ActiveSkill
     private Zone pullZoneInstance;
     private Zone gravityZoneInstance;
     private Coroutine pullDelayRoutine;
+    // =========================
+    // STATE
+    // =========================
     private bool pullExecuted;
 
     private readonly HashSet<ChessPieceFPSController> gravityAffected = new();
@@ -53,8 +68,10 @@ public class KingSkill : ActiveSkill
     private readonly List<ChessPieceFPSController> gravityStale = new();
     private readonly Dictionary<ChessPieceFPSController, PullSession> activePulls = new();
     private readonly List<ChessPieceFPSController> pullKeys = new();
-    private readonly Collider[] overlapBuffer = new Collider[32];
 
+    // =========================
+    // INTERNAL STRUCTS
+    // =========================
     private struct PullSession
     {
         public List<Vector3> path;
@@ -64,8 +81,8 @@ public class KingSkill : ActiveSkill
     // =========================
     // AI Awareness
     // =========================
-    public bool IsActivePullZone => pullZoneInstance != null && pullZoneInstance.gameObject.activeSelf;
-    public bool IsActiveGravityZone => gravityZoneInstance != null && gravityZoneInstance.gameObject.activeSelf;
+    public bool IsActivePullZone => pullZoneInstance != null;
+    public bool IsActiveGravityZone => gravityZoneInstance != null;
     public float PullZoneRadius => pullRadius;
     public float GravityZoneRadius => gravityRadius;
     public Vector3 PullZoneCenter => transform.position;
@@ -211,7 +228,7 @@ public class KingSkill : ActiveSkill
         {
             float uc = Mathf.Min(u, 1f);
             Vector3 pos = Vector3.Lerp(start, end, uc);
-            pos.y += 4f * height * uc * (1f - uc);
+            pos.y += 4f * height * uc * (1f - uc); // parabol
 
             Vector3 delta = pos - prev;
             float dist = delta.magnitude;
@@ -232,12 +249,13 @@ public class KingSkill : ActiveSkill
 
         Vector3 center = transform.position;
         float half = CageHalfHeight;
-        int count = Physics.OverlapCapsuleNonAlloc(center - Vector3.up * half, center + Vector3.up * half,
-            pullRadius * 1.15f, overlapBuffer, enemyLayer, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapCapsule(center - Vector3.up * half, center + Vector3.up * half,
+            pullRadius * 1.15f, enemyLayer, QueryTriggerInteraction.Ignore);
+        int count = hits.Length;
 
         for (int i = 0; i < count; i++)
         {
-            ChessPieceFPSController target = SkillTargeting.PieceOf(overlapBuffer[i]);
+            ChessPieceFPSController target = SkillTargeting.PieceOf(hits[i]);
             if (!SkillTargeting.IsAffectable(fps, target) || activePulls.ContainsKey(target))
                 continue;
 
@@ -289,16 +307,16 @@ public class KingSkill : ActiveSkill
             if (nextIndex > index && cc != null)
             {
                 Vector3 delta = s.path[nextIndex] - target.transform.position;
-                Vector3 bodyOffset = cc.bounds.center - target.transform.position; // cast at body height
                 int subSteps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / 0.1f));
                 Vector3 step = delta / subSteps;
                 float stepDist = step.magnitude;
 
                 for (int j = 0; j < subSteps && stepDist > 0f; j++)
                 {
-                    if (Physics.SphereCast(target.transform.position + bodyOffset, cc.radius, step / stepDist, out RaycastHit hit,
+                    if (Physics.SphereCast(target.transform.position, cc.radius, step / stepDist, out RaycastHit hit,
                             stepDist, obstacleLayer, QueryTriggerInteraction.Ignore))
                     {
+                        target.WarpPosition(hit.point + hit.normal * 0.01f);
                         blocked = true;
                         break;
                     }
@@ -338,10 +356,11 @@ public class KingSkill : ActiveSkill
     {
         gravityCurrent.Clear();
 
-        int count = Physics.OverlapSphereNonAlloc(transform.position, gravityRadius, overlapBuffer, enemyLayer, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapSphere(transform.position, gravityRadius, enemyLayer);
+        int count = hits.Length;
         for (int i = 0; i < count; i++)
         {
-            ChessPieceFPSController target = SkillTargeting.PieceOf(overlapBuffer[i]);
+            ChessPieceFPSController target = SkillTargeting.PieceOf(hits[i]);
             if (!SkillTargeting.IsAffectable(fps, target) || !gravityCurrent.Add(target))
                 continue;
 

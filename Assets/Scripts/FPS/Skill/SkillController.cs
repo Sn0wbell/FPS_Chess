@@ -14,6 +14,9 @@ public class SkillController : MonoBehaviour
 
     public SkillBlockMask CurrentBlockMask { get; private set; }
 
+    // =========================
+    // RUNTIME SKILL REGISTRATION
+    // =========================
     public void RegisterSkillRuntime(ActiveSkill skill)
     {
         if (skill != null && !activeSkills.Contains(skill))

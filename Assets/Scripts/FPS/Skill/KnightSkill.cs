@@ -32,8 +32,6 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     [Header("Landing Bonus")]
     [Tooltip("+30% damage on the first shot after landing.")]
     [SerializeField] private float landingShotDamageBonus = 0.3f;
-    [Tooltip("Seconds after landing during which the bonus can be used.")]
-    [SerializeField] private float landingBonusWindow = 4f;
 
     [Header("Defence While Leaping")]
     [Tooltip("Fraction of incoming damage removed while in the air (0.65 = takes 35%).")]
@@ -44,8 +42,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     [SerializeField] private LayerMask solidMask;
     [SerializeField] private LayerMask enemyMask;
 
-    private const float ArcStep = 0.05f;
-    private const float MinLeapLength = 0.5f; // shorter than this = no room to leap
+    private const float ArcStep = 0.05f; // parametric step
 
     private Vector3 leapStart;
     private Vector3 leapForward;
@@ -54,10 +51,8 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     private bool leapActive;
 
     private bool landingBonusAvailable;
-    private float landingBonusExpires;
 
     private readonly HashSet<IDamageable> damagedTargets = new();
-    private readonly Collider[] overlapBuffer = new Collider[16];
 
     private ChessPieceFPSController fps;
     private CharacterController controller;
@@ -80,12 +75,12 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     protected override float GetActiveDuration(in SkillContext ctx) => leapDuration * maxArcParameter + 0.1f;
 
     // =========================
-    // TRAJECTORY
+    // PARAMETRIC ARC
     // =========================
     private Vector3 ArcPoint(float u)
     {
         Vector3 pos = leapStart + leapForward * (leapDistance * u);
-        pos.y = leapStart.y + 4f * leapHeight * u * (1f - u);
+        pos.y = leapStart.y + 4f * leapHeight * u * (1f - u); // parabol
         return pos;
     }
 
@@ -137,13 +132,6 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         leapForward = forward.sqrMagnitude > 1e-4f ? forward.normalized : Vector3.forward;
 
         ComputeLeapEnd();
-
-        if (leapDistance * leapEndU < MinLeapLength)
-        {
-            // A wall right in front: no leap, no cooldown spent.
-            AbortActivation();
-            return;
-        }
 
         leapActive = true;
         landingBonusAvailable = false;
@@ -206,7 +194,6 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         PerformLandingAoE();
 
         landingBonusAvailable = true;
-        landingBonusExpires = Time.time + landingBonusWindow;
     }
 
     private void CleanupLeap()
@@ -243,6 +230,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         if (otherDirection.sqrMagnitude < 0.001f)
             return;
 
+        // Damage cả hai phía.
         SkillTargeting.TryDealDamage(fps, otherFps.GetComponent<IDamageable>(), new DamageInfo
         {
             amount = ImpactDamage,
@@ -261,13 +249,14 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             type = DamageType.Melee
         });
 
+        // Ngắt chuyển động skill của cả hai phía.
         opposingSkill.ForceCancel();
         fps.InterruptActiveMovementSkills();
         otherFps.InterruptActiveMovementSkills();
 
-        // Both bounce back along the other's charge direction.
-        fps.AddExternalImpulse(otherDirection.normalized * impulseForce);
-        otherFps.AddExternalImpulse(leapForward * impulseForce);
+        // Hai phía văng ngược hướng lao tới của đối phương.
+        fps.AddExternalImpulse(-otherDirection.normalized * impulseForce);
+        otherFps.AddExternalImpulse(-leapForward.normalized * impulseForce);
     }
 
     private void HandleMidAirCollision()
@@ -279,17 +268,19 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         Vector3 bottom = new Vector3(transform.position.x, controller.bounds.min.y + radius, transform.position.z);
         Vector3 top = new Vector3(transform.position.x, controller.bounds.max.y - radius, transform.position.z);
 
-        int count = Physics.OverlapCapsuleNonAlloc(bottom, top, radius, overlapBuffer, enemyMask, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapCapsule(bottom, top, radius, enemyMask, QueryTriggerInteraction.Ignore);
+        int count = hits.Length;
 
         for (int i = 0; i < count; i++)
         {
             if (!leapActive)
                 return;
 
-            ChessPieceFPSController otherFps = SkillTargeting.PieceOf(overlapBuffer[i]);
+            ChessPieceFPSController otherFps = SkillTargeting.PieceOf(hits[i]);
             if (!SkillTargeting.IsAffectable(fps, otherFps))
                 continue;
 
+            // Kiểm tra đối phương có đang dùng Knight/Rook dash không.
             ActiveSkill opposingMovementSkill = null;
             foreach (var skill in otherFps.boundSkills)
             {
@@ -302,23 +293,25 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
                 }
             }
 
+            // CLASH: Knight/Rook đang lao vào nhau.
             if (opposingMovementSkill != null)
             {
                 ResolveSkillClash(otherFps, opposingMovementSkill);
                 return;
             }
 
+            // Va chạm thông thường: chỉ enemy nhận impulse và damage.
             IDamageable dmg = otherFps.GetComponent<IDamageable>();
             if (dmg == null || !damagedTargets.Add(dmg))
                 continue; // each piece is hit once per leap
 
             otherFps.InterruptActiveMovementSkills();
-            otherFps.AddExternalImpulse(leapForward * impulseForce);
+            otherFps.AddExternalImpulse(-leapForward.normalized * impulseForce);
 
             SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
             {
                 amount = ImpactDamage,
-                hitPoint = overlapBuffer[i].ClosestPoint(transform.position),
+                hitPoint = hits[i].ClosestPoint(transform.position),
                 hitDirection = leapForward,
                 source = gameObject,
                 type = DamageType.Melee
@@ -328,13 +321,14 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
 
     private void PerformLandingAoE()
     {
-        int count = Physics.OverlapSphereNonAlloc(transform.position, landingRadius, overlapBuffer, enemyMask, QueryTriggerInteraction.Ignore);
+        Collider[] hits = Physics.OverlapSphere(transform.position, landingRadius, enemyMask, QueryTriggerInteraction.Ignore);
+        int count = hits.Length;
         float damage = (leapDistance / Mathf.Max(0.01f, leapDuration)) * landingDamageScale;
         var hitThisLanding = new HashSet<ChessPieceFPSController>();
 
         for (int i = 0; i < count; i++)
         {
-            Collider col = overlapBuffer[i];
+            Collider col = hits[i];
             ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
             if (!SkillTargeting.IsAffectable(fps, otherFps) || !hitThisLanding.Add(otherFps))
                 continue;
@@ -355,10 +349,10 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         }
     }
 
-    // =========================
-    // DEFENCE / BONUS
-    // =========================
 
+    // =========================
+    // BONUS / DAMAGE MOD
+    // =========================
     /// <summary>Applied by ChessPieceHealth to every hit this knight takes.</summary>
     public void ModifyDamage(ref DamageInfo info)
     {
@@ -366,16 +360,13 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             info.amount *= 1f - leapDamageReduction;
     }
 
-    public bool LandingBonusReady => landingBonusAvailable && Time.time <= landingBonusExpires;
+    public bool LandingBonusReady => landingBonusAvailable;
 
     /// <summary>Asked by the gun once per shot: the first shot after landing gets the bonus.</summary>
     public float ConsumeShotDamageMultiplier()
     {
-        if (!LandingBonusReady)
-        {
-            landingBonusAvailable = false;
+        if (!landingBonusAvailable)
             return 1f;
-        }
 
         landingBonusAvailable = false;
         return 1f + landingShotDamageBonus;

@@ -5,8 +5,9 @@ using UnityEngine;
 /// <summary>
 /// "Reveal": a piece is marked for one team for a few seconds, visible THROUGH walls.
 ///  - Logic (for AI later): IsRevealed(target, team) / OnRevealed.
-///  - Visual: only for the local player's team; the target's renderers get an extra
-///    x-ray material (ZTest Always) drawn on top of everything while the reveal lasts.
+///  - Visual: only for the local player's team; every mesh of the target gets an x-ray
+///    copy (ZTest Always, all sub-meshes) drawn on top of everything while the reveal lasts.
+///    The target's own materials are never touched.
 /// Used by the Pawn: whoever kills one of its clones is revealed to the pawn's side.
 /// </summary>
 public static class RevealSystem
@@ -72,11 +73,16 @@ public static class RevealSystem
     }
 }
 
-/// <summary>Adds the x-ray material to a revealed piece while the reveal lasts, then restores its materials.</summary>
+/// <summary>
+/// Shows a revealed piece through walls: each of its meshes gets an x-ray copy (one x-ray
+/// material per sub-mesh, so the whole model is covered). The piece's own renderers and
+/// materials are left untouched; the copies are destroyed when the reveal ends.
+/// </summary>
 public sealed class RevealHighlight : MonoBehaviour
 {
-    private Renderer[] renderers = Array.Empty<Renderer>();
-    private Material[][] originals = Array.Empty<Material[]>();
+    public const string OverlayName = "XRayOverlay";
+
+    private readonly List<GameObject> overlays = new List<GameObject>();
     private Team viewer;
     private bool shown;
 
@@ -93,21 +99,48 @@ public sealed class RevealHighlight : MonoBehaviour
         if (xray == null)
             return;
 
-        renderers = GetComponentsInChildren<Renderer>();
-        originals = new Material[renderers.Length][];
-        for (int i = 0; i < renderers.Length; i++)
+        foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>())
         {
-            Renderer r = renderers[i];
-            if (r == null || r is LineRenderer || r is ParticleSystemRenderer) continue;
+            if (r == null || r.gameObject.name == OverlayName) continue;
+            MeshFilter filter = r.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null) continue;
 
-            Material[] mats = r.sharedMaterials;
-            originals[i] = mats;
-            var withXRay = new Material[mats.Length + 1];
-            Array.Copy(mats, withXRay, mats.Length);
-            withXRay[mats.Length] = xray; // extra pass over the last sub-mesh, drawn through walls
-            r.sharedMaterials = withXRay;
+            GameObject overlay = NewOverlay(r.transform);
+            overlay.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+            SetupOverlayRenderer(overlay.AddComponent<MeshRenderer>(), xray, filter.sharedMesh.subMeshCount);
         }
+
+        foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            if (r == null || r.gameObject.name == OverlayName || r.sharedMesh == null) continue;
+
+            GameObject overlay = NewOverlay(r.transform);
+            var copy = overlay.AddComponent<SkinnedMeshRenderer>();
+            copy.sharedMesh = r.sharedMesh;
+            copy.bones = r.bones;
+            copy.rootBone = r.rootBone;
+            SetupOverlayRenderer(copy, xray, r.sharedMesh.subMeshCount);
+        }
+
         shown = true;
+    }
+
+    private GameObject NewOverlay(Transform parent)
+    {
+        var overlay = new GameObject(OverlayName);
+        overlay.transform.SetParent(parent, false);
+        overlays.Add(overlay);
+        return overlay;
+    }
+
+    private static void SetupOverlayRenderer(Renderer r, Material xray, int subMeshCount)
+    {
+        var mats = new Material[Mathf.Max(1, subMeshCount)];
+        for (int i = 0; i < mats.Length; i++)
+            mats[i] = xray; // one per sub-mesh: the whole model is drawn through walls
+        r.sharedMaterials = mats;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
     }
 
     private void Update()
@@ -123,9 +156,10 @@ public sealed class RevealHighlight : MonoBehaviour
         if (!shown)
             return;
 
-        for (int i = 0; i < renderers.Length; i++)
-            if (renderers[i] != null && originals[i] != null)
-                renderers[i].sharedMaterials = originals[i];
+        foreach (GameObject overlay in overlays)
+            if (overlay != null)
+                Destroy(overlay);
+        overlays.Clear();
 
         shown = false;
         enabled = false;

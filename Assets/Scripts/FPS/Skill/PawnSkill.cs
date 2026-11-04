@@ -8,7 +8,8 @@ public class PawnCloneMarker : MonoBehaviour
 
 /// <summary>
 /// PAWN — decoys. Spawns clones that scatter in random directions (the pawn itself is flung
-/// the same way, so it mixes in), all landing inside the arena. Clones carry a copy of the
+/// the same way, so it mixes in), aimed to land inside the arena (a clone that still leaves
+/// it falls off and is defeated; the pawn follows the arena's out-of-bounds rule). Clones carry a copy of the
 /// pawn's weapon (visual only), have a little health and deal no damage.
 /// Whoever kills a clone is revealed to the pawn's side through walls for a few seconds.
 /// The skill stays active while clones live; its cooldown starts when the last clone is gone
@@ -85,12 +86,14 @@ public class PawnSkill : ActiveSkill
         fps = ctx.fps;
     }
 
+    // Active duration = maximum lifetime of clones
+    // ActiveSkill stays active while clones exist
     protected override float GetActiveDuration(in SkillContext ctx) => cloneLifetime;
 
     protected override void OnEnterActive(in SkillContext ctx)
     {
         ClearExistingClones();
-        hasArena = ArenaArea.TryGetBounds(out arena);
+        hasArena = ArenaController.Current != null && ArenaController.Current.TryGetBounds(out arena);
         PrepareWeaponTemplate();
 
         for (int i = 0; i < cloneCount; i++)
@@ -103,6 +106,7 @@ public class PawnSkill : ActiveSkill
 
     protected override void TickActive(in SkillContext ctx)
     {
+        // Remove destroyed clones from tracking
         activeClones.RemoveAll(c => c == null || !c.gameObject.activeInHierarchy);
 
         // Every clone has been killed before its time ran out: the cooldown starts now.
@@ -114,8 +118,10 @@ public class PawnSkill : ActiveSkill
             FinishActive();
     }
 
+    // Cleanup all remaining clones safely
     protected override void OnExitActive(in SkillContext ctx) => ClearExistingClones();
 
+    // Force cleanup
     protected override void OnForceCancel(in SkillContext ctx) => ClearExistingClones();
 
     // =========================
@@ -132,7 +138,7 @@ public class PawnSkill : ActiveSkill
             dir.y = Mathf.Abs(dir.y);
             v = dir.normalized * scatterForce + Vector3.up * upwardForce;
 
-            if (!hasArena || ArenaArea.ContainsXZ(arena, ArenaArea.PredictLanding(from, v, PawnCloneHealth.ScatterGravity), arenaMargin))
+            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, PawnCloneHealth.ScatterGravity), arenaMargin))
                 return v;
         }
 

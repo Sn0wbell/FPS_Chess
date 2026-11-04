@@ -3,7 +3,8 @@ using UnityEngine;
 
 /// <summary>
 /// A Pawn decoy: scatters on spawn, then stands still; has a little health; deals no damage.
-/// Reports who killed it (the Pawn reveals that piece to its side). Stays inside the arena.
+/// Reports who killed it (the Pawn reveals that piece to its side). A clone that leaves the
+/// arena (falls off the floor) is defeated.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class PawnCloneHealth : MonoBehaviour, IDamageable
@@ -22,7 +23,6 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
 
     private bool hasArena;
     private Bounds arena;
-    private const float ArenaMargin = 0.5f;
 
     private CharacterController controller;
 
@@ -70,7 +70,7 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         currentHealth = maxHealth;
 
         scatterVelocity = initialVelocity;
-        hasArena = ArenaArea.TryGetBounds(out arena);
+        hasArena = ArenaController.Current != null && ArenaController.Current.TryGetBounds(out arena);
 
         timer = 0f;
         dying = false;
@@ -105,16 +105,9 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
             scatterVelocity.z *= 0.15f;
         }
 
-        // Never leave the arena: stop at its edge like at a wall.
-        if (hasArena && !ArenaArea.ContainsXZ(arena, transform.position, ArenaMargin))
-        {
-            Vector3 clamped = ArenaArea.ClampXZ(arena, transform.position, ArenaMargin);
-            controller.enabled = false;
-            transform.position = clamped;
-            controller.enabled = true;
-            scatterVelocity.x = 0f;
-            scatterVelocity.z = 0f;
-        }
+        // Out of the arena (past its edge or fallen below it): defeated, nobody to reveal.
+        if (hasArena && (!ArenaController.ContainsXZ(arena, transform.position) || transform.position.y < arena.min.y))
+            Die(killedBy: null);
     }
 
     public void TakeDamage(DamageInfo info)
