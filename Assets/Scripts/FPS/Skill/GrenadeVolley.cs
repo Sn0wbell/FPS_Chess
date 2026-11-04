@@ -116,11 +116,15 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
 
         foreach (var pair in damageMap)
         {
+            // Travels from the nearest zone centre to the piece (a raised king shield facing it reduces it).
+            Vector3 from = blastMap[pair.Key].from;
+            Vector3 travel = pair.Key.transform.position - from;
+            travel.y = 0f;
             SkillTargeting.TryDealDamage(this, pair.Key.GetComponent<IDamageable>(), new DamageInfo
             {
                 amount = pair.Value,
-                hitPoint = Vector3.zero,
-                hitDirection = Vector3.up,
+                hitPoint = pair.Key.transform.position,
+                hitDirection = travel.sqrMagnitude > 1e-6f ? travel.normalized : Vector3.up,
                 source = damageSource,
                 type = DamageType.Explosive
             });

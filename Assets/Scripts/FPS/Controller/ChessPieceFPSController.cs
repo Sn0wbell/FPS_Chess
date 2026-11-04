@@ -384,6 +384,23 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         return true;
     }
 
+    /// <summary>
+    /// Takes this piece over whatever moves it now: the skill currently moving it is cancelled
+    /// (it releases what it held), any flight in progress stops, then <paramref name="owner"/> claims it.
+    /// </summary>
+    public bool ClaimForcedMove(object owner)
+    {
+        if (owner == null) return false;
+        if (forcedMoveOwner != null && !ReferenceEquals(forcedMoveOwner, owner))
+        {
+            if (forcedMoveOwner is ActiveSkill holder)
+                holder.ForceCancel();
+            forcedMoveOwner = null;
+        }
+        ForceStopAllMotion();
+        return TryBeginForcedMove(owner);
+    }
+
     public void EndForcedMove(object owner)
     {
         if (ReferenceEquals(forcedMoveOwner, owner))
@@ -517,10 +534,19 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     public void BindWeapon(GameObject weapon, RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
         if (!weapon) return;
+        if (weaponHolder == null)
+        {
+            // Pieces without a holder in their prefab (e.g. AI pieces) get one at the eye.
+            weaponHolder = new GameObject("WeaponHolder").transform;
+            weaponHolder.SetParent(cameraPoint != null ? cameraPoint : transform, false);
+        }
         weaponObject = Instantiate(weapon, weaponHolder);
         weaponObject.SetActive(true);
-        weaponObject.GetComponent<Rigidbody>().useGravity = false;
-        weaponObject.GetComponent<Rigidbody>().isKinematic = true;
+        if (weaponObject.TryGetComponent(out Rigidbody weaponBody))
+        {
+            weaponBody.useGravity = false;
+            weaponBody.isKinematic = true;
+        }
         weaponObject.transform.SetParent(weaponHolder);
         weaponObject.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
@@ -558,7 +584,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         currentWeaponLocalRot = defaultWeaponLocalRot;
     }
 
-    void HandleWeaponInput(bool attackBlocked)
+    protected virtual void HandleWeaponInput(bool attackBlocked)
     {
         if (!canAct || currentWeapon == null) return;
         if (Mouse.current == null) return;

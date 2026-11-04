@@ -103,6 +103,33 @@ public static class SkillTargeting
         return flat * strength + Vector3.up * (bounce * strength);
     }
 
+    /// <summary>
+    /// Moves a controller by <paramref name="move"/>, sliding along the ground / walls it runs into
+    /// (speed x cos of the hit angle). Hitting something at <paramref name="headOnAngle"/> or more
+    /// (90 = straight into it) does not move it and returns false.
+    /// </summary>
+    public static bool SlideMove(CharacterController cc, Vector3 move, LayerMask obstacles, float headOnAngle)
+    {
+        float length = move.magnitude;
+        if (cc == null || length < 1e-6f)
+            return true;
+
+        Vector3 dir = move / length;
+        Vector3 center = cc.bounds.center;
+        float half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+        if (Physics.CapsuleCast(center + Vector3.up * half, center - Vector3.up * half, cc.radius * 0.95f, dir, out RaycastHit hit,
+                length + cc.skinWidth + 0.05f, obstacles, QueryTriggerInteraction.Ignore))
+        {
+            float angle = Mathf.Asin(Mathf.Clamp01(Vector3.Dot(dir, -hit.normal))) * Mathf.Rad2Deg; // 0 = along it, 90 = straight in
+            if (angle >= headOnAngle)
+                return false;
+            move = (dir - Vector3.Dot(dir, hit.normal) * hit.normal) * length;
+        }
+
+        cc.Move(move);
+        return true;
+    }
+
     /// <returns>The impact strength (closing speed along the line of centres); 0 or less = no collision.</returns>
     public static float BilliardCollision(Vector3 posA, Vector3 velA, Vector3 posB, Vector3 velB, float bounce,
         out Vector3 newVelA, out Vector3 newVelB)

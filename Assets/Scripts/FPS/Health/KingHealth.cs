@@ -24,23 +24,20 @@ public class KingHealth : ChessPieceHealth
     // =========================
     // DIRECTIONAL SHIELD
     // =========================
+    // An unbreakable shield the king raises at will (held right mouse button, KingFPSController).
+    // Raised, it covers the 90 degrees in front of the king:
+    //   - bullets and weapon blows (sword...) are stopped completely;
+    //   - explosions and skill impacts get through reduced.
+    // Hits from the sides or behind are not covered.
 
     [Header("Directional Shield")]
-    [SerializeField] private float maxShieldIntegrity = 150f;
-    [SerializeField] private float shieldIntegrity;
-
-    [Tooltip("Damage multiplier when shield blocks (0.3 = take 30% damage)")]
-    [SerializeField] private float shieldDamageMultiplier = 0.3f;
-
     [SerializeField] private float shieldBlockAngle = 90f;
 
-    [Tooltip("Grenade (explosive) damage removed while the shield is up, from any direction (0.3 = 30% less). Does not wear the shield.")]
+    [Tooltip("Share of explosion / skill-impact damage still taken through the raised shield (0.3 = takes 30%, i.e. 70% less).")]
     [Range(0f, 1f)]
-    [SerializeField] private float shieldExplosiveReduction = 0.3f;
+    [SerializeField] private float shieldReducedDamageTaken = 0.3f;
 
     public bool ShieldActive { get; private set; }
-
-    public event Action<float> OnShieldDamaged;
 
     // =========================
     // UNITY
@@ -63,37 +60,14 @@ public class KingHealth : ChessPieceHealth
         float damage = info.amount;
 
         // -------------------------
-        // 1. SHIELD (MULTIPLIER)
+        // 1. SHIELD (raised, front 90 degrees)
         // -------------------------
 
-        if (ShieldActive && shieldIntegrity > 0f && info.type == DamageType.Explosive)
+        if (ShieldActive && IsInFrontOfTheShield(info.hitDirection))
         {
-            // Grenades: only reduced by a percentage, whatever the direction.
-            damage *= 1f - shieldExplosiveReduction;
-        }
-        else if (ShieldActive && shieldIntegrity > 0f)
-        {
-            float angle = Vector3.Angle(
-                transform.forward,
-                -info.hitDirection.normalized
-            );
-
-            if (angle <= shieldBlockAngle * 0.5f)
-            {
-                float reduced = damage * shieldDamageMultiplier;
-                float absorbed = damage - reduced;
-
-                shieldIntegrity -= absorbed;
-                OnShieldDamaged?.Invoke(absorbed);
-
-                if (shieldIntegrity <= 0f)
-                {
-                    shieldIntegrity = 0f;
-                    ShieldActive = false;
-                }
-
-                damage = reduced;
-            }
+            if (info.type == DamageType.Bullet || IsWeaponBlow(info))
+                return 0f;                         // stopped by the shield
+            damage *= shieldReducedDamageTaken;    // explosion / skill impact: reduced
         }
 
         if (damage <= 0f)
@@ -197,22 +171,22 @@ public class KingHealth : ChessPieceHealth
     // SHIELD CONTROL
     // =========================
 
-    public void ActivateShield()
+    /// <summary>Raised while the king holds it up (right mouse button); lowered otherwise.</summary>
+    public void SetShieldRaised(bool raised) => ShieldActive = raised;
+
+    /// <summary>The hit travels against the king's facing, within the shield's angle.</summary>
+    private bool IsInFrontOfTheShield(Vector3 hitDirection)
     {
-        if (shieldIntegrity <= 0f) return;
-        ShieldActive = true;
+        Vector3 flat = new Vector3(hitDirection.x, 0f, hitDirection.z);
+        if (flat.sqrMagnitude < 1e-6f)
+            return false; // straight from above / below: not covered
+        Vector3 forward = new Vector3(transform.forward.x, 0f, transform.forward.z);
+        return Vector3.Angle(forward, -flat) <= shieldBlockAngle * 0.5f;
     }
 
-    public void DeactivateShield()
-    {
-        ShieldActive = false;
-    }
-
-    public void ResetShield()
-    {
-        shieldIntegrity = maxShieldIntegrity;
-        ShieldActive = false;
-    }
+    /// <summary>A blow from a weapon (sword, knife...), as opposed to a skill impact.</summary>
+    private static bool IsWeaponBlow(DamageInfo info) =>
+        info.type == DamageType.Melee && info.source != null && info.source.GetComponentInParent<WeaponController>() != null;
 
     // =========================
     // RESET
@@ -222,7 +196,7 @@ public class KingHealth : ChessPieceHealth
     {
         lastStandActive = false;
         currentStacks = 0; // stack chỉ tồn tại trong Last Stand
-        ResetShield();
+        ShieldActive = false;
         // KHÔNG reset health ở đây → dùng base HP như quân khác
     }
 }

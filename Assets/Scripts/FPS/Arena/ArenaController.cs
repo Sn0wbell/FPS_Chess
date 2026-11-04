@@ -15,6 +15,8 @@ public struct ChessPieceSpawn
 {
     public GameObject prefab;
     public int count;
+    [Tooltip("This piece's own weapon (e.g. the king's sword). Empty: the player's piece gets the arena's playerWeaponPrefab, AI pieces get none.")]
+    public GameObject weapon;
 }
 
 public class ArenaController : MonoBehaviour
@@ -283,9 +285,10 @@ public class ArenaController : MonoBehaviour
 
             playerSpawned = true;
 
-            if (playerWeaponPrefab != null)
+            GameObject weapon = whitePrefab.weapon != null ? whitePrefab.weapon : playerWeaponPrefab;
+            if (weapon != null)
             {
-                playerPiece.BindWeapon(playerWeaponPrefab, pointCenterScope, pointTopScope, pointBottomScope, pointLeftScope, pointRightScope);
+                playerPiece.BindWeapon(weapon, pointCenterScope, pointTopScope, pointBottomScope, pointLeftScope, pointRightScope);
 
 
                 if (weaponHUD != null)
@@ -316,6 +319,8 @@ public class ArenaController : MonoBehaviour
                 fps.DisableControl(); // AI-ready
                 fps.SetTeam(Team.Black);
                 fps.SetPlayerControlled(false);
+                if (spawn.weapon != null)
+                    fps.BindWeapon(spawn.weapon, null, null, null, null, null); // its own weapon, used by the AI later
                 aliveBlack.Add(fps);
 
                 col++;
