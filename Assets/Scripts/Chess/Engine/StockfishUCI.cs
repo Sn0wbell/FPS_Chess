@@ -38,6 +38,23 @@ namespace Chess.Engine
         private bool _searchInProgress;
         private bool _isStopping;
 
+        // A cancelled/timed-out search still answers "bestmove" later. That late answer
+        // (and its info lines) must be drained, never taken as the answer to the next search.
+        private bool _staleBestMovePending;
+        private TaskCompletionSource<bool> _staleDrainTcs;
+
+        // MultiPV lines of the current search: multipv index -> (first move, score)
+        private readonly System.Collections.Generic.Dictionary<int, PvLine> _pvLines =
+            new System.Collections.Generic.Dictionary<int, PvLine>();
+
+        /// <summary>First move and score of one MultiPV line (score from the side to move).</summary>
+        public readonly struct PvLine
+        {
+            public readonly string Move;
+            public readonly int Score;
+            public PvLine(string move, int score) { Move = move; Score = score; }
+        }
+
         private readonly SynchronizationContext _syncContext;
 
         public bool IsRunning =>
@@ -245,6 +262,75 @@ namespace Chess.Engine
             return StartSearchAsync($"go depth {depth} movetime {movetimeMs}", timeoutMs);
         }
 
+        /// <summary>
+        /// Like GetBestMoveAsync, but also returns the MultiPV lines reported during the
+        /// search (best first). Set the "MultiPV" option beforehand to get more than one.
+        /// </summary>
+        public async Task<(string bestMove, System.Collections.Generic.List<PvLine> lines)> AnalyseAsync(
+            int depth,
+            int movetimeMs,
+            int timeoutMs = 60000)
+        {
+            string best = await GetBestMoveAsync(depth, movetimeMs, timeoutMs); // clears the MultiPV lines first
+
+            var lines = new System.Collections.Generic.List<PvLine>();
+            lock (_pvLines)
+            {
+                var keys = new System.Collections.Generic.List<int>(_pvLines.Keys);
+                keys.Sort();
+                foreach (int k in keys)
+                    lines.Add(_pvLines[k]);
+            }
+            return (best, lines);
+        }
+
+        /// <summary>
+        /// Parses "info ... multipv K ... score cp X | mate N ... pv MOVE ...".
+        /// Bound (lowerbound/upperbound) scores are ignored. Returns false for other lines.
+        /// </summary>
+        public static bool TryParseInfoLine(string line, out int multiPv, out PvLine pv)
+        {
+            multiPv = 1;
+            pv = default;
+
+            if (line == null || !line.StartsWith("info ", StringComparison.Ordinal))
+                return false;
+
+            string[] t = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            int? score = null;
+            string move = null;
+
+            for (int i = 1; i < t.Length; i++)
+            {
+                switch (t[i])
+                {
+                    case "lowerbound":
+                    case "upperbound":
+                        return false;
+                    case "multipv":
+                        if (i + 1 < t.Length && int.TryParse(t[i + 1], out int k)) multiPv = k;
+                        break;
+                    case "score":
+                        if (i + 2 < t.Length && int.TryParse(t[i + 2], out int v))
+                        {
+                            if (t[i + 1] == "cp") score = v;
+                            else if (t[i + 1] == "mate") score = EngineCandidate.FromMate(v);
+                        }
+                        break;
+                    case "pv":
+                        if (i + 1 < t.Length) move = t[i + 1];
+                        i = t.Length; // pv is the last field
+                        break;
+                }
+            }
+
+            if (score == null || move == null)
+                return false;
+
+            pv = new PvLine(move, score.Value);
+            return true;
+        }
+
         // ============================================================
         // SEARCH CONTROL
         // ============================================================
@@ -254,6 +340,26 @@ namespace Chess.Engine
             int timeoutMs)
         {
             EnsureRunning();
+
+            Task drain = null;
+            lock (_stateLock)
+            {
+                if (_staleBestMovePending && _staleDrainTcs != null)
+                    drain = _staleDrainTcs.Task;
+            }
+
+            if (drain != null)
+            {
+                await Task.WhenAny(drain, Task.Delay(3000)).ConfigureAwait(false);
+                lock (_stateLock)
+                {
+                    _staleBestMovePending = false; // give up waiting after 3 s
+                    _staleDrainTcs = null;
+                }
+            }
+
+            lock (_pvLines)
+                _pvLines.Clear();
 
             lock (_stateLock)
             {
@@ -272,20 +378,30 @@ namespace Chess.Engine
 
             SendRawCommand(goCommand);
 
+            TaskCompletionSource<string> searchTcs = _bestMoveTcs;
+
             using (_searchCts.Token.Register(() =>
             {
-                _bestMoveTcs?.TrySetCanceled();
+                searchTcs.TrySetCanceled();
                 try { SendRawCommand("stop"); } catch { }
             }))
             {
                 try
                 {
-                    return await _bestMoveTcs.Task.ConfigureAwait(false);
+                    return await searchTcs.Task.ConfigureAwait(false);
                 }
                 finally
                 {
                     lock (_stateLock)
                     {
+                        if (searchTcs.Task.IsCanceled)
+                        {
+                            // The engine's "bestmove" for this search is still on its way.
+                            _staleBestMovePending = true;
+                            _staleDrainTcs = new TaskCompletionSource<bool>(
+                                TaskCreationOptions.RunContinuationsAsynchronously);
+                        }
+
                         _searchInProgress = false;
                         _searchCts?.Dispose();
                         _searchCts = null;
@@ -339,6 +455,33 @@ namespace Chess.Engine
             {
                 _readyOkTcs?.TrySetResult(true);
                 return;
+            }
+
+            if (TryParseInfoLine(trimmed, out int multiPv, out PvLine pvLine))
+            {
+                lock (_stateLock)
+                {
+                    if (_staleBestMovePending)
+                        return; // belongs to the cancelled search
+                }
+
+                lock (_pvLines)
+                    _pvLines[multiPv] = pvLine; // deeper iterations overwrite shallower ones
+                return;
+            }
+
+            if (trimmed.StartsWith("bestmove", StringComparison.OrdinalIgnoreCase))
+            {
+                lock (_stateLock)
+                {
+                    if (_staleBestMovePending)
+                    {
+                        _staleBestMovePending = false;
+                        _staleDrainTcs?.TrySetResult(true);
+                        _staleDrainTcs = null;
+                        return; // late answer of the cancelled search: drop it
+                    }
+                }
             }
 
             if (trimmed.StartsWith("bestmove ",

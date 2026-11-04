@@ -18,6 +18,7 @@ public class KingHealth : ChessPieceHealth
     public bool IsLastStand => lastStandActive;
 
     public event Action<int> OnStackLost;
+    public event Action<int> OnStackRestored;
     public event Action OnLastStandStarted;
 
     // =========================
@@ -142,6 +143,25 @@ public class KingHealth : ChessPieceHealth
         DisableRegen();
 
         OnLastStandStarted?.Invoke();
+    }
+
+    /// <summary>
+    /// Last Stand reward: the king defeated one of the pieces that mated it and gets
+    /// back one lost stack (never above maxStacks). Health inside the current stack is
+    /// kept, so the regained stack is a full extra layer. Health and stacks otherwise
+    /// carry over between opponents: the whole Last Stand is ONE match on ONE map.
+    /// Call it from the arena each time a Last Stand opponent dies.
+    /// </summary>
+    public void RestoreStack()
+    {
+        if (!lastStandActive || !IsAlive)
+            return;
+
+        if (currentStacks >= maxStacks)
+            return;
+
+        currentStacks++;
+        OnStackRestored?.Invoke(currentStacks);
     }
 
     public void EndLastStand(bool survived)

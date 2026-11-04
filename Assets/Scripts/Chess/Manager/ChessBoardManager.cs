@@ -45,12 +45,25 @@ public sealed class ChessBoardManager : MonoBehaviour
     [Tooltip("Optional FEN to start from (testing). Empty = standard start position.")]
     [SerializeField] private string startFen = "";
 
+    [Header("Last Stand Highlight (piece outline)")]
+    [SerializeField] private Color lastStandKingColor = new Color(1f, 0.8f, 0.1f, 1f);
+    [SerializeField] private Color lastStandAttackerColor = new Color(1f, 0.15f, 0.1f, 1f);
+    [Range(0f, 1f)]
+    [SerializeField] private float lastStandOutlineAlpha = 0.55f;
+
+    [Header("Duel Preview (piece outline)")]
+    [SerializeField] private Color duelAttackerColor = new Color(1f, 0.8f, 0.1f, 1f);
+    [SerializeField] private Color duelDefenderColor = new Color(1f, 0.15f, 0.1f, 1f);
+
     // ======================================================
     // STATE
     // ======================================================
     private ChessPosition position = ChessPosition.CreateStart();
     private readonly ChessPiece[] pieceObjects = new ChessPiece[64];
     private readonly List<ChessMove> moveBuffer = new List<ChessMove>(64);
+    private readonly List<int> squareBuffer = new List<int>(16);
+    private readonly List<ChessPieceShell> lastStandShells = new List<ChessPieceShell>(16);
+    private readonly List<ChessPieceShell> duelShells = new List<ChessPieceShell>(2);
 
     // Re-entrancy guard
     private bool isApplyingMove;
@@ -65,6 +78,9 @@ public sealed class ChessBoardManager : MonoBehaviour
     public bool whiteToMove => position.WhiteToMove;
 
     public bool IsApplyingMove => isApplyingMove;
+
+    /// <summary>Increments on every change of the board (move, pass, take-back, removal, init).</summary>
+    public int StateVersion { get; private set; }
 
     // ======================================================
     // INIT
@@ -113,6 +129,9 @@ public sealed class ChessBoardManager : MonoBehaviour
         }
 
         isApplyingMove = false;
+        lastStandShells.Clear();
+        duelShells.Clear();
+        StateVersion++;
 
         if (highlight != null)
             highlight.ClearAll();
@@ -182,9 +201,11 @@ public sealed class ChessBoardManager : MonoBehaviour
                 return false;
 
             MoveResult result = SyncPieceObjects(applied, mover);
+            StateVersion++;
 
             highlight?.ClearTransient();
             highlight?.ClearCheck();
+            highlight?.ClearFailedAttack();
 
             await PlayMoveVisuals(result);
 
@@ -271,10 +292,305 @@ public sealed class ChessBoardManager : MonoBehaviour
             return false;
 
         position.PassTurn();
+        StateVersion++;
 
         highlight?.ClearTransient();
+        highlight?.ClearFailedAttack();
         RefreshCheckHighlight();
         return true;
+    }
+
+    // ======================================================
+    // DUEL PRESENTATION
+    // ======================================================
+
+    /// <summary>Before a duel: attacker and defender outlined, their squares marked.</summary>
+    public void ShowDuelPreview(CombatRequest request)
+    {
+        ClearDuelPreview();
+
+        OutlinePiece(request.Move.From, duelAttackerColor, duelShells);
+        OutlinePiece(request.DefenderSquare, duelDefenderColor, duelShells);
+
+        if (highlight != null)
+        {
+            highlight.ClearTransient();
+            highlight.ShowSingle(request.Move.FromFile, request.Move.FromRank, HighlightType.Selection, isTransient: true);
+            highlight.ShowSingle(ChessPosition.FileOf(request.DefenderSquare), ChessPosition.RankOf(request.DefenderSquare),
+                HighlightType.CaptureMove, isTransient: true);
+        }
+    }
+
+    public void ClearDuelPreview()
+    {
+        HideShells(duelShells);
+        highlight?.ClearTransient();
+    }
+
+    /// <summary>After a lost duel: the attacker's square and the target stay marked until the next move.</summary>
+    public void ShowFailedAttack(CombatRequest request)
+    {
+        highlight?.ShowFailedAttack(
+            SquareToVec(request.Move.From),
+            SquareToVec(request.DefenderSquare));
+    }
+
+    // ======================================================
+    // THREAT MAP
+    // ======================================================
+
+    /// <summary>Shows every square controlled by one side (toggled by the player).</summary>
+    public void ShowThreatMap(bool attackersWhite)
+    {
+        if (highlight == null)
+            return;
+
+        position.GetAttackedSquares(attackersWhite, squareBuffer);
+        var squares = new List<Vector2Int>(squareBuffer.Count);
+        foreach (int sq in squareBuffer)
+            squares.Add(SquareToVec(sq));
+        highlight.ShowThreats(squares);
+    }
+
+    public void ClearThreatMap() => highlight?.ClearThreats();
+
+    // ======================================================
+    // LAST STAND
+    // ======================================================
+
+    public bool CanRevertLastMove => position.TryGetLastMove(out _);
+
+    /// <summary>Builds the Last Stand request for the side to move, which must be checkmated.</summary>
+    public LastStandRequest BuildLastStandRequest(bool kingIsHuman)
+    {
+        bool kingWhite = position.WhiteToMove;
+        position.TryFindKing(kingWhite, out int kingSq);
+        position.TryGetLastMove(out ChessMove mating);
+
+        position.GetCheckmateParticipants(squareBuffer);
+        var participants = new List<LastStandParticipant>(squareBuffer.Count);
+        foreach (int sq in squareBuffer)
+            participants.Add(new LastStandParticipant(position.GetPiece(sq).Type, sq));
+
+        // Human king -> the AI mated it -> fight everyone at once.
+        // AI king -> a human mated it -> the human plays its pieces one by one.
+        LastStandMode mode = kingIsHuman ? LastStandMode.Simultaneous : LastStandMode.Sequential;
+        return new LastStandRequest(kingWhite, kingSq, kingIsHuman, mode, participants, mating);
+    }
+
+    /// <summary>Freeze-frame before the Last Stand: king and every participant outlined + tiles.</summary>
+    public void ShowLastStandPreview(LastStandRequest request)
+    {
+        ClearLastStandPreview();
+
+        var attackers = new List<Vector2Int>(request.Participants.Count);
+        foreach (LastStandParticipant p in request.Participants)
+        {
+            attackers.Add(SquareToVec(p.Square));
+            OutlinePiece(p.Square, lastStandAttackerColor, lastStandShells);
+        }
+        OutlinePiece(request.KingSquare, lastStandKingColor, lastStandShells);
+
+        highlight?.ClearTransient();
+        highlight?.ShowLastStand(SquareToVec(request.KingSquare), attackers);
+    }
+
+    /// <summary>Recap after a lost Last Stand: surviving participants stay outlined, defeated squares marked.</summary>
+    public void ShowLastStandAftermath(LastStandRequest request, LastStandResult result)
+    {
+        ClearLastStandPreview();
+
+        var survivors = new List<Vector2Int>();
+        foreach (LastStandParticipant p in request.Participants)
+        {
+            if (Contains(result.DefeatedSquares, p.Square))
+                continue;
+            survivors.Add(SquareToVec(p.Square));
+            OutlinePiece(p.Square, lastStandAttackerColor, lastStandShells);
+        }
+        OutlinePiece(request.KingSquare, lastStandKingColor, lastStandShells);
+
+        if (highlight != null)
+        {
+            highlight.ShowLastStand(SquareToVec(request.KingSquare), survivors);
+            var defeated = new List<Vector2Int>(result.DefeatedSquares.Count);
+            foreach (int sq in result.DefeatedSquares)
+                defeated.Add(SquareToVec(sq));
+            highlight.ShowLastStandDefeated(defeated);
+        }
+    }
+
+    public void ClearLastStandPreview()
+    {
+        HideShells(lastStandShells);
+        highlight?.ClearLastStand();
+    }
+
+    private void OutlinePiece(int sq, Color color, List<ChessPieceShell> track)
+    {
+        if ((uint)sq >= 64u)
+            return;
+
+        ChessPiece piece = pieceObjects[sq];
+        if (piece == null)
+            return;
+
+        ChessPieceShell shell = piece.GetComponentInChildren<ChessPieceShell>(true);
+        if (shell == null)
+            return;
+
+        shell.Show(color, lastStandOutlineAlpha);
+        track.Add(shell);
+    }
+
+    private static void HideShells(List<ChessPieceShell> shells)
+    {
+        foreach (ChessPieceShell shell in shells)
+            if (shell != null)
+                shell.Hide();
+        shells.Clear();
+    }
+
+    private static bool Contains(IReadOnlyList<int> list, int v)
+    {
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] == v) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// King won its Last Stand: the mating move is taken back (animated) and the mating
+    /// side loses its turn. A piece captured by that move stays gone; a promotion is undone.
+    /// </summary>
+    public async Task<bool> RevertLastMoveAsPassAsync()
+    {
+        if (isApplyingMove)
+            return false;
+
+        isApplyingMove = true;
+
+        try
+        {
+            // Check the objects first: on a desync nothing may change (rules and objects stay in step).
+            if (!position.TryGetLastMove(out ChessMove last))
+                return false;
+
+            if (pieceObjects[last.To] == null)
+            {
+                Debug.LogError($"ChessBoardManager: no piece object on {ChessPosition.SquareName(last.To)} to take back {last}. Board desync.", this);
+                return false;
+            }
+
+            if (!position.TryRevertLastMoveAsPass(out AppliedMove reverted))
+                return false;
+
+            StateVersion++;
+
+            ChessMove m = reverted.Move;
+            ChessPiece moverObj = pieceObjects[m.To];
+            pieceObjects[m.To] = null;
+
+            // Promotion taken back: the queen model becomes a pawn again (spawned where the queen stands).
+            if (m.IsPromotion)
+                moverObj = SwapModel(moverObj, PieceType.Pawn, m.ToFile, m.ToRank);
+
+            pieceObjects[m.From] = moverObj;
+            moverObj.SetBoardCoords(m.FromFile, m.FromRank);
+
+            ChessPiece rookObj = null;
+            if (reverted.RookFrom >= 0)
+            {
+                rookObj = pieceObjects[reverted.RookTo];
+                pieceObjects[reverted.RookTo] = null;
+                pieceObjects[reverted.RookFrom] = rookObj;
+                if (rookObj != null)
+                    rookObj.SetBoardCoords(ChessPosition.FileOf(reverted.RookFrom), ChessPosition.RankOf(reverted.RookFrom));
+            }
+
+            highlight?.ClearTransient();
+            highlight?.ClearCheck();
+            highlight?.ClearLastMove();     // the taken-back move never stood
+            highlight?.ClearFailedAttack();
+
+            await AnimateTo(moverObj, m.From);
+            if (rookObj != null)
+                await AnimateTo(rookObj, reverted.RookFrom);
+
+            RefreshCheckHighlight();
+            return true;
+        }
+        finally
+        {
+            isApplyingMove = false;
+        }
+    }
+
+    /// <summary>King fell: the participants it defeated are removed from the board (recap only).</summary>
+    public async Task RemoveDefeatedPiecesAsync(IReadOnlyList<int> squares)
+    {
+        var shatters = new List<Task>(squares.Count);
+
+        foreach (int sq in squares)
+        {
+            if ((uint)sq >= 64u)
+                continue;
+
+            // The mating side's king may have fought in the Last Stand, but the winner's
+            // king never leaves the board.
+            if (position.GetPiece(sq).Type == PieceType.King)
+                continue;
+
+            ChessPiece obj = pieceObjects[sq];
+            position.RemovePiece(sq);
+            pieceObjects[sq] = null;
+
+            if (obj == null)
+                continue;
+
+            Vector3 worldPos = obj.transform.position;
+            obj.transform.SetParent(null, true);
+
+            // All defeated pieces break at the same time (not one after another).
+            if (shatter != null)
+            {
+                MeshRenderer mr = obj.GetComponentInChildren<MeshRenderer>();
+                Material mat = mr != null ? mr.sharedMaterial : null;
+                if (obj.gameObject.activeInHierarchy)
+                    obj.gameObject.SetActive(false);
+                shatters.Add(SafeShatter(worldPos, mat));
+            }
+
+            obj.Capture();
+        }
+
+        StateVersion++;
+        await Task.WhenAll(shatters);
+    }
+
+    /// <summary>The shatter effect is cosmetic: its cancellation or failure never breaks a turn.</summary>
+    private async Task SafeShatter(Vector3 position, Material material)
+    {
+        try
+        {
+            await shatter.ShatterAt(position, material);
+        }
+        catch (System.OperationCanceledException)
+        {
+            // effect destroyed (scene teardown)
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning("ChessBoardManager: shatter effect failed: " + ex.Message, this);
+        }
+    }
+
+    private async Task AnimateTo(ChessPiece piece, int sq)
+    {
+        Vector3 target = grid.BoardToWorld(ChessPosition.FileOf(sq), ChessPosition.RankOf(sq));
+        if (moveAnimator != null)
+            await moveAnimator.AnimateMove(piece.transform, target);
+        else
+            piece.transform.position = target;
     }
 
     // ======================================================
@@ -297,9 +613,9 @@ public sealed class ChessBoardManager : MonoBehaviour
         }
 
         // Variant: after a lost duel the side that just passed may still be in check,
-        // i.e. its king can now be captured. Show it as a (non-mate) check.
+        // i.e. its king can now be captured.
         if (position.TryFindKing(!side, out int ek) && position.IsInCheck(!side))
-            highlight.ShowCheck(SquareToVec(ek), false);
+            highlight.ShowKingInDanger(SquareToVec(ek));
     }
 
     private static Vector2Int SquareToVec(int sq) =>
@@ -344,10 +660,7 @@ public sealed class ChessBoardManager : MonoBehaviour
                 if (r.captured.gameObject.activeInHierarchy)
                     r.captured.gameObject.SetActive(false);
 
-                await shatter.ShatterAt(
-                    r.capturedWorldPos,
-                    mr != null ? mr.sharedMaterial : null
-                );
+                await SafeShatter(r.capturedWorldPos, mr != null ? mr.sharedMaterial : null);
             }
 
             r.captured.Capture();
@@ -363,20 +676,27 @@ public sealed class ChessBoardManager : MonoBehaviour
         if (pawn == null)
             return;
 
-        int f = ChessPosition.FileOf(sq);
-        int r = ChessPosition.RankOf(sq);
+        pieceObjects[sq] = SwapModel(pawn, newType, ChessPosition.FileOf(sq), ChessPosition.RankOf(sq));
+    }
 
-        ChessPiece promoted = spawner != null ? spawner.SpawnPiece(newType, pawn.isWhite, f, r) : null;
-        if (promoted == null)
+    /// <summary>
+    /// Replaces a piece object by a freshly spawned model of another type at the old object's
+    /// world position and the given board coords. Returns the new object (or the old one,
+    /// retyped, when the prefab is missing). Does not touch pieceObjects.
+    /// </summary>
+    private ChessPiece SwapModel(ChessPiece old, PieceType newType, int f, int r)
+    {
+        ChessPiece fresh = spawner != null ? spawner.SpawnPiece(newType, old.isWhite, f, r) : null;
+        if (fresh == null)
         {
-            // Logic is already correct in ChessPosition; keep the pawn model as a fallback.
-            Debug.LogWarning($"ChessBoardManager: promotion model for {newType} missing, keeping pawn model.", this);
-            pawn.type = newType;
-            return;
+            // Logic is already correct in ChessPosition; keep the old model as a fallback.
+            Debug.LogWarning($"ChessBoardManager: model for {newType} missing, keeping the {old.type} model.", this);
+            old.type = newType;
+            return old;
         }
 
-        promoted.SetPosition(grid.BoardToWorld(f, r), f, r);
-        pieceObjects[sq] = promoted;
-        Destroy(pawn.gameObject);
+        fresh.SetPosition(old.transform.position, f, r);
+        Destroy(old.gameObject);
+        return fresh;
     }
 }

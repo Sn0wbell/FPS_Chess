@@ -25,6 +25,11 @@ public sealed class ChessPosition
     private readonly List<string> history = new List<string>(128);
     private bool currentFromPass;
 
+    // Last applied move (for the Last Stand take-back). Cleared by PassTurn.
+    private bool hasLastMove;
+    private ChessMove lastMove;
+    private Undo lastUndo;
+
     // Scratch buffer for internal legal-move queries.
     private readonly List<ChessMove> scratch = new List<ChessMove>(64);
 
@@ -126,7 +131,10 @@ public sealed class ChessPosition
             EnPassantSquare = EnPassantSquare,
             HalfmoveClock = HalfmoveClock,
             FullmoveNumber = FullmoveNumber,
-            currentFromPass = currentFromPass
+            currentFromPass = currentFromPass,
+            hasLastMove = hasLastMove,
+            lastMove = lastMove,
+            lastUndo = lastUndo
         };
         Array.Copy(board, c.board, 64);
         c.history.AddRange(history);
@@ -222,6 +230,15 @@ public sealed class ChessPosition
         }
         square = -1;
         return false;
+    }
+
+    /// <summary>Every square attacked (controlled) by one side, including squares of its own defended pieces.</summary>
+    public void GetAttackedSquares(bool byWhite, List<int> result)
+    {
+        result.Clear();
+        for (int sq = 0; sq < 64; sq++)
+            if (IsSquareAttacked(sq, byWhite))
+                result.Add(sq);
     }
 
     /// <summary>True when that side's king exists and is attacked.</summary>
@@ -707,8 +724,195 @@ public sealed class ChessPosition
 
         history.Add(RepetitionKey());
         currentFromPass = false;
+        hasLastMove = true;
+        lastMove = move;
+        lastUndo = u;
         applied = new AppliedMove(move, mover, captured, u.CapturedSquare, rookFrom, rookTo);
         return true;
+    }
+
+    /// <summary>The last move applied with TryApply, if no pass/take-back happened since.</summary>
+    public bool TryGetLastMove(out ChessMove move)
+    {
+        move = lastMove;
+        return hasLastMove;
+    }
+
+    /// <summary>
+    /// Last Stand won by the king: the mating move is taken back and the mating side
+    /// loses its turn. A piece captured by that move STAYS captured (its duel was won),
+    /// a promotion is undone (the pawn returns), a castling rook returns.
+    /// Returns false when there is no last move to take back.
+    /// </summary>
+    public bool TryRevertLastMoveAsPass(out AppliedMove reverted)
+    {
+        reverted = default;
+        if (!hasLastMove)
+            return false;
+
+        ChessMove m = lastMove;
+        Undo u = lastUndo;
+
+        int rookFrom = -1, rookTo = -1;
+        if (m.IsCastle)
+        {
+            bool kingSide = m.ToFile == 6;
+            rookFrom = Square(kingSide ? 7 : 0, m.FromRank);
+            rookTo = Square(kingSide ? 5 : 3, m.FromRank);
+        }
+
+        UnmakeRaw(m, u);
+
+        BoardPiece mover = GetPiece(m.From);
+        BoardPiece captured = BoardPiece.Empty;
+        if (u.CapturedSquare >= 0)
+        {
+            captured = GetPiece(u.CapturedSquare);
+            board[u.CapturedSquare] = 0;                    // the capture stands
+            Castling &= ~RightsTouchedBy(u.CapturedSquare); // a captured home rook stays gone
+            HalfmoveClock = 0;                              // a capture happened
+        }
+
+        history.RemoveAt(history.Count - 1); // the mating position never stood
+        hasLastMove = false;
+
+        reverted = new AppliedMove(m, mover, captured, u.CapturedSquare, rookFrom, rookTo);
+        PassTurn();
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a piece from the board outside normal play (pieces killed in a lost
+    /// Last Stand, shown after the game ended). Does not change the side to move.
+    /// </summary>
+    public void RemovePiece(int sq)
+    {
+        if ((uint)sq >= 64u)
+            return;
+        board[sq] = 0;
+        hasLastMove = false;
+    }
+
+    // ======================================================
+    // LAST STAND: PIECES TAKING PART IN A CHECKMATE
+    // ======================================================
+
+    /// <summary>
+    /// Enemy pieces taking part in the mate of the side to move: every piece that
+    /// checks the king, plus every piece controlling a square the king could step to
+    /// (an empty square, or one holding an enemy piece - i.e. that piece's defenders).
+    /// Attacks are computed with the king lifted off the board, so a slider also controls
+    /// the squares behind the king. Order = suggested fight order for a one-by-one
+    /// Last Stand: weakest first (pawn, knight, bishop, rook, queen, king), then by square.
+    /// </summary>
+    public void GetCheckmateParticipants(List<int> squares)
+    {
+        squares.Clear();
+        bool white = WhiteToMove;
+        if (!TryFindKing(white, out int k))
+            return;
+
+        sbyte kingCode = board[k];
+        board[k] = 0;
+        try
+        {
+            CollectAttackers(k, !white, squares);
+
+            int f = FileOf(k), r = RankOf(k);
+            for (int i = 0; i < 8; i++)
+            {
+                int tf = f + KingDf[i], tr = r + KingDr[i];
+                if (!InBounds(tf, tr))
+                    continue;
+
+                int s = Square(tf, tr);
+                sbyte c = board[s];
+                if (c != 0 && (c > 0) == white)
+                    continue; // own piece: not an escape square
+
+                CollectAttackers(s, !white, squares);
+            }
+        }
+        finally
+        {
+            board[k] = kingCode;
+        }
+
+        squares.Sort((a, b) =>
+        {
+            int va = FightOrder(TypeOf(board[a])), vb = FightOrder(TypeOf(board[b]));
+            return va != vb ? va.CompareTo(vb) : a.CompareTo(b);
+        });
+    }
+
+    private static int FightOrder(PieceType t)
+    {
+        switch (t)
+        {
+            case PieceType.Pawn: return 0;
+            case PieceType.Knight: return 1;
+            case PieceType.Bishop: return 2;
+            case PieceType.Rook: return 3;
+            case PieceType.Queen: return 4;
+            default: return 5; // king
+        }
+    }
+
+    /// <summary>Adds (without duplicates) the squares of all pieces of one colour attacking sq.</summary>
+    private void CollectAttackers(int sq, bool byWhite, List<int> result)
+    {
+        int f = FileOf(sq), r = RankOf(sq);
+
+        int pr = byWhite ? r - 1 : r + 1;
+        sbyte pawn = Code(PieceType.Pawn, byWhite);
+        for (int df = -1; df <= 1; df += 2)
+            if (InBounds(f + df, pr) && board[Square(f + df, pr)] == pawn)
+                AddUnique(result, Square(f + df, pr));
+
+        sbyte knight = Code(PieceType.Knight, byWhite);
+        for (int i = 0; i < 8; i++)
+        {
+            int tf = f + KnightDf[i], tr = r + KnightDr[i];
+            if (InBounds(tf, tr) && board[Square(tf, tr)] == knight)
+                AddUnique(result, Square(tf, tr));
+        }
+
+        sbyte king = Code(PieceType.King, byWhite);
+        for (int i = 0; i < 8; i++)
+        {
+            int tf = f + KingDf[i], tr = r + KingDr[i];
+            if (InBounds(tf, tr) && board[Square(tf, tr)] == king)
+                AddUnique(result, Square(tf, tr));
+        }
+
+        sbyte queen = Code(PieceType.Queen, byWhite);
+        CollectRay(f, r, RookDf, RookDr, Code(PieceType.Rook, byWhite), queen, result);
+        CollectRay(f, r, BishopDf, BishopDr, Code(PieceType.Bishop, byWhite), queen, result);
+    }
+
+    private void CollectRay(int f, int r, int[] df, int[] dr, sbyte a, sbyte b, List<int> result)
+    {
+        for (int d = 0; d < df.Length; d++)
+        {
+            int tf = f + df[d], tr = r + dr[d];
+            while (InBounds(tf, tr))
+            {
+                int s = Square(tf, tr);
+                sbyte c = board[s];
+                if (c != 0)
+                {
+                    if (c == a || c == b) AddUnique(result, s);
+                    break;
+                }
+                tf += df[d];
+                tr += dr[d];
+            }
+        }
+    }
+
+    private static void AddUnique(List<int> list, int v)
+    {
+        if (!list.Contains(v)) list.Add(v);
     }
 
     /// <summary>
@@ -725,6 +929,7 @@ public sealed class ChessPosition
             FullmoveNumber++;
         WhiteToMove = !WhiteToMove;
         currentFromPass = true;
+        hasLastMove = false;
     }
 
     // ======================================================

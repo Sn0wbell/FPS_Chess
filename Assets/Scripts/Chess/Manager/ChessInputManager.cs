@@ -13,6 +13,11 @@ public sealed class ChessInputManager : MonoBehaviour
     [Header("Raycast")]
     public LayerMask boardRaycastMask;
 
+    [Header("Threat Map")]
+    [Tooltip("Toggles the squares controlled by the opponent.")]
+    [SerializeField] private KeyCode threatMapKey = KeyCode.T;
+    [SerializeField] private bool threatMapOnAtStart = false;
+
     // ======================================================
     // STATE (INPUT-LOCAL ONLY)
     // ======================================================
@@ -29,6 +34,9 @@ public sealed class ChessInputManager : MonoBehaviour
     // HARD UX LOCK (prevents double intent)
     private bool inputLocked;
 
+    private bool threatMapOn;
+    private int threatMapVersion = -1;
+
     // ======================================================
     // UNITY
     // ======================================================
@@ -37,12 +45,17 @@ public sealed class ChessInputManager : MonoBehaviour
     {
         if (board != null)
             lastWhiteToMove = board.whiteToMove;
+
+        threatMapOn = threatMapOnAtStart;
     }
 
     private void Update()
     {
         if (game == null || board == null)
             return;
+
+        // Works at any time (also during the AI's turn): it only shows information.
+        UpdateThreatMap();
 
         // --------------------------------------------------
         // HARD BLOCK: NO INPUT / NO UX WHILE BUSY
@@ -213,7 +226,32 @@ public sealed class ChessInputManager : MonoBehaviour
         }
 
         ClearSelectionInternal();
+
+        // Drop the hover outline now: the duel preview outlines the same pieces next,
+        // and a later ClearHover would hide that outline.
+        ClearHover();
         _ = TryRequestMoveAsync(from, sq);
+    }
+
+    // ======================================================
+    // THREAT MAP (squares the opponent controls)
+    // ======================================================
+
+    private void UpdateThreatMap()
+    {
+        if (Input.GetKeyDown(threatMapKey))
+        {
+            threatMapOn = !threatMapOn;
+            threatMapVersion = -1;
+            if (!threatMapOn)
+                board.ClearThreatMap();
+        }
+
+        if (threatMapOn && threatMapVersion != board.StateVersion)
+        {
+            board.ShowThreatMap(attackersWhite: game.aiIsWhite);
+            threatMapVersion = board.StateVersion;
+        }
     }
 
     private void TrySelectSquare(Vector2Int sq)
