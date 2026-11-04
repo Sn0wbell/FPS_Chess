@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Rendering.Universal;
 
 // ======================================================
-// MOVE SNAPSHOT
+// MOVE SNAPSHOT (visuals only)
 // ======================================================
 public struct MoveResult
 {
+    public ChessMove move;
+
     public ChessPiece mover;
     public Vector2Int from;
     public Vector2Int to;
@@ -22,6 +22,14 @@ public struct MoveResult
     public Vector2Int rookTo;
 }
 
+/// <summary>
+/// Owns the board: the rules state (<see cref="ChessPosition"/>, authoritative)
+/// and the piece GameObjects that mirror it (visual only).
+///
+/// State changes go through exactly two doors:
+///   <see cref="CommitMoveAsync"/> — a legal move is played (after a won duel for captures).
+///   <see cref="PassTurn"/>        — the attacker lost the FPS duel and loses its turn.
+/// </summary>
 public sealed class ChessBoardManager : MonoBehaviour
 {
     [Header("References")]
@@ -33,28 +41,16 @@ public sealed class ChessBoardManager : MonoBehaviour
     [Header("Highlight")]
     public BoardHighlightSystem highlight;
 
+    [Header("Setup")]
+    [Tooltip("Optional FEN to start from (testing). Empty = standard start position.")]
+    [SerializeField] private string startFen = "";
+
     // ======================================================
-    // BOARD STATE (AUTHORITATIVE)
+    // STATE
     // ======================================================
-    private readonly ChessPiece[,] board = new ChessPiece[8, 8];
-
-    public bool whiteToMove { get; private set; } = true;
-
-    // Castling rights
-    private bool whiteKingMoved;
-    private bool blackKingMoved;
-    private bool whiteRookA1Moved;
-    private bool whiteRookH1Moved;
-    private bool blackRookA8Moved;
-    private bool blackRookH8Moved;
-
-    // En-passant (valid for ONE turn)
-    private int enPassantFile = -1;
-    private int enPassantRank = -1;
-
-    // FEN counters
-    private int halfmoveClock = 0;
-    private int fullmoveNumber = 1;
+    private ChessPosition position = ChessPosition.CreateStart();
+    private readonly ChessPiece[] pieceObjects = new ChessPiece[64];
+    private readonly List<ChessMove> moveBuffer = new List<ChessMove>(64);
 
     // Re-entrancy guard
     private bool isApplyingMove;
@@ -62,54 +58,111 @@ public sealed class ChessBoardManager : MonoBehaviour
     // ======================================================
     // READ-ONLY STATE ACCESS
     // ======================================================
-    public int EnPassantFile => enPassantFile;
-    public int EnPassantRank => enPassantRank;
 
-    public bool WhiteKingMoved => whiteKingMoved;
-    public bool BlackKingMoved => blackKingMoved;
-    public bool WhiteRookA1Moved => whiteRookA1Moved;
-    public bool WhiteRookH1Moved => whiteRookH1Moved;
-    public bool BlackRookA8Moved => blackRookA8Moved;
-    public bool BlackRookH8Moved => blackRookH8Moved;
+    /// <summary>Rules state. Read it freely; never mutate it from outside this class.</summary>
+    public ChessPosition Position => position;
+
+    public bool whiteToMove => position.WhiteToMove;
+
+    public bool IsApplyingMove => isApplyingMove;
 
     // ======================================================
     // INIT
     // ======================================================
-    public void InitializeBoard()
-    {
-        System.Array.Clear(board, 0, board.Length);
+    public void InitializeBoard() => InitializeBoard(startFen);
 
-        List<ChessPiece> pieces = spawner.SpawnAllPieces();
-        foreach (var p in pieces)
+    public void InitializeBoard(string fen)
+    {
+        ClearPieceObjects();
+
+        if (string.IsNullOrWhiteSpace(fen))
         {
-            board[p.file, p.rank] = p;
-            p.SetPosition(grid.BoardToWorld(p.file, p.rank), p.file, p.rank);
+            position = ChessPosition.CreateStart();
+        }
+        else
+        {
+            try
+            {
+                position = ChessPosition.FromFen(fen);
+            }
+            catch (System.FormatException ex)
+            {
+                Debug.LogError($"ChessBoardManager: invalid start FEN, using standard start. {ex.Message}", this);
+                position = ChessPosition.CreateStart();
+            }
         }
 
-        whiteToMove = true;
-        enPassantFile = -1;
-        enPassantRank = -1;
+        for (int sq = 0; sq < 64; sq++)
+        {
+            BoardPiece bp = position.GetPiece(sq);
+            if (bp.IsEmpty)
+                continue;
 
-        halfmoveClock = 0;
-        fullmoveNumber = 1;
+            int f = ChessPosition.FileOf(sq);
+            int r = ChessPosition.RankOf(sq);
 
-        whiteKingMoved = false;
-        blackKingMoved = false;
-        whiteRookA1Moved = false;
-        whiteRookH1Moved = false;
-        blackRookA8Moved = false;
-        blackRookH8Moved = false;
+            ChessPiece piece = spawner != null ? spawner.SpawnPiece(bp.Type, bp.IsWhite, f, r) : null;
+            if (piece == null)
+            {
+                Debug.LogError($"ChessBoardManager: failed to spawn {bp} at {ChessPosition.SquareName(sq)}.", this);
+                continue;
+            }
+
+            piece.SetPosition(grid.BoardToWorld(f, r), f, r);
+            pieceObjects[sq] = piece;
+        }
 
         isApplyingMove = false;
 
         if (highlight != null)
             highlight.ClearAll();
+
+        RefreshCheckHighlight();
+    }
+
+    private void ClearPieceObjects()
+    {
+        for (int i = 0; i < 64; i++)
+        {
+            if (pieceObjects[i] != null)
+                Destroy(pieceObjects[i].gameObject);
+            pieceObjects[i] = null;
+        }
     }
 
     // ======================================================
-    // PUBLIC ENTRY (ONE TRUE ENTRY)
+    // QUERIES
     // ======================================================
-    public async Task<bool> ApplyMove(string uci)
+
+    public bool TryGetLegalMove(string uci, out ChessMove move) =>
+        position.TryFindLegalMove(uci, out move);
+
+    /// <param name="promotion">None = queen when the move is a promotion.</param>
+    public bool TryGetLegalMove(Vector2Int from, Vector2Int to, PieceType promotion, out ChessMove move) =>
+        position.TryFindLegalMove(
+            ChessPosition.Square(from.x, from.y),
+            ChessPosition.Square(to.x, to.y),
+            promotion,
+            out move);
+
+    public void GetLegalMoves(List<ChessMove> moves) => position.GenerateLegalMoves(moves);
+
+    public GameResult EvaluateResult() => position.GetResult();
+
+    public string GenerateFEN() => position.ToFen();
+
+    public ChessPiece GetPieceAt(int file, int rank) =>
+        ChessPosition.InBounds(file, rank) ? pieceObjects[ChessPosition.Square(file, rank)] : null;
+
+    // ======================================================
+    // STATE CHANGE 1: COMMIT A LEGAL MOVE
+    // ======================================================
+
+    /// <summary>
+    /// Plays a legal move on the rules state, then animates it.
+    /// Returns false (nothing changed) when the move is illegal or another move is in progress.
+    /// </summary>
+    public async Task<bool> CommitMoveAsync(ChessMove move)
     {
         if (isApplyingMove)
             return false;
@@ -118,32 +171,28 @@ public sealed class ChessBoardManager : MonoBehaviour
 
         try
         {
-            if (!TryCommitMove(uci, out MoveResult result))
-                return false;
-
-            // ==================================================
-            // CLEAR TRANSIENT ONLY — KEEP PERSISTENT
-            // ==================================================
-            if (highlight != null)
+            ChessPiece mover = pieceObjects[move.From];
+            if (mover == null)
             {
-                highlight.ClearTransient();
-                highlight.ClearCheck();
+                Debug.LogError($"ChessBoardManager: no piece object on {ChessPosition.SquareName(move.From)} for {move}. Board desync.", this);
+                return false;
             }
 
-            // ==================================================
-            // PLAY VISUALS (BOARD STATE ALREADY COMMITTED)
-            // ==================================================
+            if (!position.TryApply(move, out AppliedMove applied))
+                return false;
+
+            MoveResult result = SyncPieceObjects(applied, mover);
+
+            highlight?.ClearTransient();
+            highlight?.ClearCheck();
+
             await PlayMoveVisuals(result);
 
-            // ==================================================
-            // LAST MOVE (PERSISTENT — ALWAYS AFTER ANIMATION)
-            // ==================================================
-            highlight?.ShowLastMove(result.from, result.to);
+            if (move.IsPromotion)
+                ReplacePromotedPiece(move.To, move.Promotion);
 
-            // ==================================================
-            // CHECK / CHECKMATE (MUST NOT CLEAR LAST MOVE)
-            // ==================================================
-            EvaluateCheckHighlight();
+            highlight?.ShowLastMove(result.from, result.to);
+            RefreshCheckHighlight();
 
             return true;
         }
@@ -153,309 +202,108 @@ public sealed class ChessBoardManager : MonoBehaviour
         }
     }
 
-    // ======================================================
-    // MOVE LOGIC (ENGINE-TRUSTED)
-    // ======================================================
-    private bool TryCommitMove(string uci, out MoveResult result)
+    /// <summary>Convenience: find the legal move for a UCI string and commit it.</summary>
+    public async Task<bool> ApplyMove(string uci)
     {
-        result = default;
-
-        if (string.IsNullOrEmpty(uci) || uci.Length < 4)
+        if (!TryGetLegalMove(uci, out ChessMove move))
             return false;
 
-        int ff = uci[0] - 'a';
-        int fr = uci[1] - '1';
-        int tf = uci[2] - 'a';
-        int tr = uci[3] - '1';
+        return await CommitMoveAsync(move);
+    }
 
-        if (!InBounds(ff, fr) || !InBounds(tf, tr))
-            return false;
+    /// <summary>Mirrors an applied move onto the piece GameObjects (board logic already committed).</summary>
+    private MoveResult SyncPieceObjects(AppliedMove applied, ChessPiece mover)
+    {
+        ChessMove move = applied.Move;
 
-        ChessPiece mover = board[ff, fr];
-        if (mover == null || mover.isWhite != whiteToMove)
-            return false;
-
-        if (!IsMoveKingSafe(uci))
-            return false;
-
-        ChessPiece captured = board[tf, tr];
-
-        result = new MoveResult
+        var result = new MoveResult
         {
+            move = move,
             mover = mover,
-            from = new Vector2Int(ff, fr),
-            to = new Vector2Int(tf, tr),
-            captured = captured,
-            capturedWorldPos = captured != null ? captured.transform.position : Vector3.zero,
-            isCastling = false,
-            rook = null
+            from = new Vector2Int(move.FromFile, move.FromRank),
+            to = new Vector2Int(move.ToFile, move.ToRank)
         };
 
-        int prevEpFile = enPassantFile;
-        int prevEpRank = enPassantRank;
-        enPassantFile = -1;
-        enPassantRank = -1;
-
-        if (mover.type == PieceType.Pawn || captured != null)
-            halfmoveClock = 0;
-        else
-            halfmoveClock++;
-
-        // EN PASSANT
-        if (mover.type == PieceType.Pawn &&
-            ff != tf &&
-            captured == null &&
-            tf == prevEpFile &&
-            tr == prevEpRank)
+        if (applied.CapturedSquare >= 0)
         {
-            int capRank = mover.isWhite ? tr - 1 : tr + 1;
-            ChessPiece ep = board[tf, capRank];
-            if (ep != null)
-            {
-                board[tf, capRank] = null;
-                result.captured = ep;
-                result.capturedWorldPos = ep.transform.position;
-            }
+            ChessPiece captured = pieceObjects[applied.CapturedSquare];
+            pieceObjects[applied.CapturedSquare] = null;
+            result.captured = captured;
+            result.capturedWorldPos = captured != null
+                ? captured.transform.position
+                : grid.BoardToWorld(ChessPosition.FileOf(applied.CapturedSquare), ChessPosition.RankOf(applied.CapturedSquare));
         }
 
-        // CASTLING
-        if (mover.type == PieceType.King && Mathf.Abs(tf - ff) == 2)
-        {
-            bool kingSide = tf > ff;
-            int rookFromFile = kingSide ? 7 : 0;
-            int rookToFile = kingSide ? 5 : 3;
+        pieceObjects[move.From] = null;
+        pieceObjects[move.To] = mover;
+        mover.SetBoardCoords(move.ToFile, move.ToRank);
 
-            ChessPiece rook = board[rookFromFile, fr];
-            board[rookFromFile, fr] = null;
-            board[rookToFile, fr] = rook;
-            rook.SetBoardCoords(rookToFile, fr);
+        if (applied.RookFrom >= 0)
+        {
+            ChessPiece rook = pieceObjects[applied.RookFrom];
+            pieceObjects[applied.RookFrom] = null;
+            pieceObjects[applied.RookTo] = rook;
+
+            int rf = ChessPosition.FileOf(applied.RookTo);
+            int rr = ChessPosition.RankOf(applied.RookTo);
+            if (rook != null)
+                rook.SetBoardCoords(rf, rr);
 
             result.isCastling = true;
             result.rook = rook;
-            result.rookFrom = new Vector2Int(rookFromFile, fr);
-            result.rookTo = new Vector2Int(rookToFile, fr);
+            result.rookFrom = new Vector2Int(ChessPosition.FileOf(applied.RookFrom), ChessPosition.RankOf(applied.RookFrom));
+            result.rookTo = new Vector2Int(rf, rr);
         }
 
-        // CASTLING RIGHTS
-        if (mover.type == PieceType.King)
-        {
-            if (mover.isWhite) whiteKingMoved = true;
-            else blackKingMoved = true;
-        }
+        return result;
+    }
 
-        if (mover.type == PieceType.Rook)
-        {
-            if (mover.isWhite)
-            {
-                if (ff == 0 && fr == 0) whiteRookA1Moved = true;
-                if (ff == 7 && fr == 0) whiteRookH1Moved = true;
-            }
-            else
-            {
-                if (ff == 0 && fr == 7) blackRookA8Moved = true;
-                if (ff == 7 && fr == 7) blackRookH8Moved = true;
-            }
-        }
+    // ======================================================
+    // STATE CHANGE 2: PASS (ATTACKER LOST THE DUEL)
+    // ======================================================
 
-        if (captured != null && captured.type == PieceType.Rook)
-        {
-            if (captured.isWhite)
-            {
-                if (tf == 0 && tr == 0) whiteRookA1Moved = true;
-                if (tf == 7 && tr == 0) whiteRookH1Moved = true;
-            }
-            else
-            {
-                if (tf == 0 && tr == 7) blackRookA8Moved = true;
-                if (tf == 7 && tr == 7) blackRookH8Moved = true;
-            }
-        }
+    /// <summary>
+    /// The side to move lost its capture duel: nothing moves, the turn passes.
+    /// </summary>
+    public bool PassTurn()
+    {
+        if (isApplyingMove)
+            return false;
 
-        // REMOVE CAPTURED FROM BOARD (LOGIC)
-        if (result.captured != null)
-            board[result.captured.file, result.captured.rank] = null;
+        position.PassTurn();
 
-        board[ff, fr] = null;
-        board[tf, tr] = mover;
-        mover.SetBoardCoords(tf, tr);
-
-        if (mover.type == PieceType.Pawn && Mathf.Abs(tr - fr) == 2)
-        {
-            enPassantFile = ff;
-            enPassantRank = (fr + tr) / 2;
-        }
-
-        if (mover.type == PieceType.Pawn && (tr == 0 || tr == 7))
-        {
-            char promo = uci.Length >= 5 ? uci[4] : 'q';
-            PromotePiece(mover, promo);
-        }
-
-        if (!whiteToMove)
-            fullmoveNumber++;
-
-        whiteToMove = !whiteToMove;
+        highlight?.ClearTransient();
+        RefreshCheckHighlight();
         return true;
     }
 
     // ======================================================
-    // KING SAFETY (SIMULATION)
+    // CHECK / CHECKMATE (HIGHLIGHT ONLY)
     // ======================================================
-    private struct SimulationSnapshot
-    {
-        public ChessPiece captured;
-        public int epFile, epRank;
-        public bool whiteToMove;
-    }
-
-    private bool IsMoveKingSafe(string uci)
-    {
-        int ff = uci[0] - 'a';
-        int fr = uci[1] - '1';
-        int tf = uci[2] - 'a';
-        int tr = uci[3] - '1';
-
-        ChessPiece mover = board[ff, fr];
-
-        SimulationSnapshot snap = SimulateMove(ff, fr, tf, tr);
-
-        // King belongs to mover
-        bool kingColor = mover.isWhite;
-        Vector2Int kingSq = FindKingSquare(kingColor);
-
-        // --- FORCE enemy perspective ---
-        bool prevTurn = whiteToMove;
-        whiteToMove = !kingColor;
-
-        ChessLegalMoveCache enemyCache = new ChessLegalMoveCache();
-        enemyCache.Rebuild(this);
-        bool inCheck = enemyCache.CanCapture(kingSq);
-
-        // --- RESTORE ---
-        whiteToMove = prevTurn;
-
-        UndoSimulate(ff, fr, tf, tr, snap);
-        return !inCheck;
-    }
-
-    private SimulationSnapshot SimulateMove(int ff, int fr, int tf, int tr)
-    {
-        SimulationSnapshot s;
-        s.captured = board[tf, tr];
-        s.epFile = enPassantFile;
-        s.epRank = enPassantRank;
-        s.whiteToMove = whiteToMove;
-
-        ChessPiece mover = board[ff, fr];
-
-        // En-passant simulation
-        if (mover.type == PieceType.Pawn &&
-        ff != tf &&
-        s.captured == null &&
-        tf == enPassantFile &&
-        tr == enPassantRank)
-        {
-            int capRank = mover.isWhite ? tr - 1 : tr + 1;
-            s.captured = board[tf, capRank];
-            board[tf, capRank] = null;
-        }
-
-        board[ff, fr] = null;
-        board[tf, tr] = mover;
-        mover.SetBoardCoords(tf, tr);
-
-        enPassantFile = -1;
-        enPassantRank = -1;
-        whiteToMove = !whiteToMove;
-
-        return s;
-    }
-
-    private void UndoSimulate(int ff, int fr, int tf, int tr, SimulationSnapshot s)
-    {
-        ChessPiece mover = board[tf, tr];
-        board[tf, tr] = s.captured;
-
-        if (s.captured != null &&
-        mover.type == PieceType.Pawn &&
-        ff != tf &&
-        s.captured.file != tf)
-        {
-            board[s.captured.file, s.captured.rank] = s.captured;
-        }
-        board[ff, fr] = mover;
-        mover.SetBoardCoords(ff, fr);
-
-        enPassantFile = s.epFile;
-        enPassantRank = s.epRank;
-        whiteToMove = s.whiteToMove;
-    }
-
-    private Vector2Int FindKingSquare(bool white)
-    {
-        for (int f = 0; f < 8; f++)
-            for (int r = 0; r < 8; r++)
-            {
-                ChessPiece p = board[f, r];
-                if (p != null && p.type == PieceType.King && p.isWhite == white)
-                    return new Vector2Int(f, r);
-            }
-        return default;
-    }
-
-    // ======================================================
-    // CHECK / CHECKMATE (HIGHLIGHT)
-    // ======================================================
-    private void EvaluateCheckHighlight()
+    private void RefreshCheckHighlight()
     {
         if (highlight == null)
             return;
 
-        bool sideInTurn = whiteToMove;
-        Vector2Int kingSq = FindKingSquare(sideInTurn);
+        highlight.ClearCheck();
 
-        // Enemy perspective
-        whiteToMove = !sideInTurn;
-        ChessLegalMoveCache enemyCache = new ChessLegalMoveCache();
-        enemyCache.Rebuild(this);
-        whiteToMove = sideInTurn;
+        bool side = position.WhiteToMove;
 
-        bool inCheck = enemyCache.CanCapture(kingSq);
-        if (!inCheck)
+        if (position.TryFindKing(side, out int k) && position.IsInCheck(side))
+        {
+            position.GenerateLegalMoves(moveBuffer);
+            highlight.ShowCheck(SquareToVec(k), moveBuffer.Count == 0);
             return;
+        }
 
-        bool hasAnyLegalMove = false;
-
-        ChessLegalMoveCache ownCache = new ChessLegalMoveCache();
-        ownCache.Rebuild(this);
-
-        for (int f = 0; f < 8 && !hasAnyLegalMove; f++)
-            for (int r = 0; r < 8 && !hasAnyLegalMove; r++)
-            {
-                ChessPiece p = board[f, r];
-                if (p == null || p.isWhite != sideInTurn)
-                    continue;
-
-                var moves = ownCache.GetMovesFrom(new Vector2Int(f, r));
-                if (moves == null) continue;
-
-                for (int i = 0; i < moves.Count; i++)
-                {
-                    string uci =
-                        $"{(char)('a' + f)}{(char)('1' + r)}" +
-                        $"{(char)('a' + moves[i].x)}{(char)('1' + moves[i].y)}";
-
-                    if (IsMoveKingSafe(uci))
-                    {
-                        hasAnyLegalMove = true;
-                        break;
-                    }
-                }
-            }
-
-        // ❗ CHỈ VẼ CHECK / CHECKMATE — KHÔNG CLEAR GÌ KHÁC
-        highlight.ShowCheck(kingSq, !hasAnyLegalMove);
+        // Variant: after a lost duel the side that just passed may still be in check,
+        // i.e. its king can now be captured. Show it as a (non-mate) check.
+        if (position.TryFindKing(!side, out int ek) && position.IsInCheck(!side))
+            highlight.ShowCheck(SquareToVec(ek), false);
     }
+
+    private static Vector2Int SquareToVec(int sq) =>
+        new Vector2Int(ChessPosition.FileOf(sq), ChessPosition.RankOf(sq));
 
     // ======================================================
     // VISUALS (ANIMATION → SHATTER → CAPTURE)
@@ -464,9 +312,7 @@ public sealed class ChessBoardManager : MonoBehaviour
     {
         Vector3 target = grid.BoardToWorld(r.to.x, r.to.y);
 
-        // -------------------------
         // MOVE MAIN PIECE
-        // -------------------------
         if (moveAnimator != null)
             await moveAnimator.AnimateMove(
                 r.mover.transform,
@@ -476,9 +322,7 @@ public sealed class ChessBoardManager : MonoBehaviour
         else
             r.mover.transform.position = target;
 
-        // -------------------------
         // CASTLING ROOK
-        // -------------------------
         if (r.isCastling && r.rook != null)
         {
             Vector3 rookTarget = grid.BoardToWorld(r.rookTo.x, r.rookTo.y);
@@ -488,9 +332,7 @@ public sealed class ChessBoardManager : MonoBehaviour
                 r.rook.transform.position = rookTarget;
         }
 
-        // -------------------------
         // CAPTURE (AFTER ALL MOVES)
-        // -------------------------
         if (r.captured != null)
         {
             // Detach so it never blocks raycast / hover
@@ -498,12 +340,10 @@ public sealed class ChessBoardManager : MonoBehaviour
 
             if (shatter != null)
             {
-                MeshRenderer mr =
-                    r.captured.GetComponentInChildren<MeshRenderer>();
+                MeshRenderer mr = r.captured.GetComponentInChildren<MeshRenderer>();
                 if (r.captured.gameObject.activeInHierarchy)
-                {
                     r.captured.gameObject.SetActive(false);
-                }
+
                 await shatter.ShatterAt(
                     r.capturedWorldPos,
                     mr != null ? mr.sharedMaterial : null
@@ -515,116 +355,28 @@ public sealed class ChessBoardManager : MonoBehaviour
     }
 
     // ======================================================
-    // PROMOTION
+    // PROMOTION (MODEL SWAP)
     // ======================================================
-    private static void PromotePiece(ChessPiece piece, char c)
+    private void ReplacePromotedPiece(int sq, PieceType newType)
     {
-        c = char.ToLower(c);
-
-        PieceType newType =
-            c == 'r' ? PieceType.Rook :
-            c == 'n' ? PieceType.Knight :
-            c == 'b' ? PieceType.Bishop :
-            PieceType.Queen;
-
-        if (piece.type == newType)
+        ChessPiece pawn = pieceObjects[sq];
+        if (pawn == null)
             return;
 
-        piece.type = newType;
+        int f = ChessPosition.FileOf(sq);
+        int r = ChessPosition.RankOf(sq);
 
-        // Safety: promotion changes move topology
-        piece.OnPromoted(); // NO-OP nếu chưa implement
-    }
-
-    // ======================================================
-    // FEN
-    // ======================================================
-    public string GenerateFEN()
-    {
-        string placement = "";
-
-        for (int rank = 7; rank >= 0; rank--)
+        ChessPiece promoted = spawner != null ? spawner.SpawnPiece(newType, pawn.isWhite, f, r) : null;
+        if (promoted == null)
         {
-            int empty = 0;
-            for (int file = 0; file < 8; file++)
-            {
-                ChessPiece p = board[file, rank];
-                if (p == null)
-                {
-                    empty++;
-                    continue;
-                }
-
-                if (empty > 0)
-                {
-                    placement += empty;
-                    empty = 0;
-                }
-
-                placement += PieceToFenChar(p);
-            }
-
-            if (empty > 0)
-                placement += empty;
-
-            if (rank > 0)
-                placement += "/";
+            // Logic is already correct in ChessPosition; keep the pawn model as a fallback.
+            Debug.LogWarning($"ChessBoardManager: promotion model for {newType} missing, keeping pawn model.", this);
+            pawn.type = newType;
+            return;
         }
 
-        string active = whiteToMove ? "w" : "b";
-        string castling = GenerateCastlingRights();
-        string enp = GenerateEnPassantSquare();
-
-        return $"{placement} {active} {castling} {enp} {halfmoveClock} {fullmoveNumber}";
+        promoted.SetPosition(grid.BoardToWorld(f, r), f, r);
+        pieceObjects[sq] = promoted;
+        Destroy(pawn.gameObject);
     }
-
-    private static char PieceToFenChar(ChessPiece p)
-    {
-        char c =
-            p.type == PieceType.Pawn ? 'p' :
-            p.type == PieceType.Rook ? 'r' :
-            p.type == PieceType.Knight ? 'n' :
-            p.type == PieceType.Bishop ? 'b' :
-            p.type == PieceType.Queen ? 'q' : 'k';
-
-        return p.isWhite ? char.ToUpper(c) : c;
-    }
-
-    private string GenerateCastlingRights()
-    {
-        string s = "";
-
-        if (!whiteKingMoved)
-        {
-            if (!whiteRookH1Moved) s += "K";
-            if (!whiteRookA1Moved) s += "Q";
-        }
-
-        if (!blackKingMoved)
-        {
-            if (!blackRookH8Moved) s += "k";
-            if (!blackRookA8Moved) s += "q";
-        }
-
-        return s == "" ? "-" : s;
-    }
-
-    private string GenerateEnPassantSquare()
-    {
-        if (enPassantFile < 0)
-            return "-";
-
-        return $"{(char)('a' + enPassantFile)}{(char)('1' + enPassantRank)}";
-    }
-
-    // ======================================================
-    // QUERY / UTIL
-    // ======================================================
-    public ChessPiece GetPieceAt(int file, int rank)
-    {
-        return InBounds(file, rank) ? board[file, rank] : null;
-    }
-
-    private static bool InBounds(int f, int r) =>
-        (uint)f < 8 && (uint)r < 8;
 }

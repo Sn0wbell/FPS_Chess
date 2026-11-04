@@ -231,6 +231,20 @@ namespace Chess.Engine
             return StartSearchAsync($"go movetime {movetimeMs}", timeoutMs);
         }
 
+        /// <summary>Search stops at whichever limit is reached first (depth or time).</summary>
+        public Task<string> GetBestMoveAsync(
+            int depth,
+            int movetimeMs,
+            int timeoutMs = 60000)
+        {
+            if (depth <= 0)
+                throw new ArgumentOutOfRangeException(nameof(depth));
+            if (movetimeMs <= 0)
+                throw new ArgumentOutOfRangeException(nameof(movetimeMs));
+
+            return StartSearchAsync($"go depth {depth} movetime {movetimeMs}", timeoutMs);
+        }
+
         // ============================================================
         // SEARCH CONTROL
         // ============================================================

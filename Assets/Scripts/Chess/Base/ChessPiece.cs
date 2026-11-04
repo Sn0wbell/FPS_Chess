@@ -1,15 +1,6 @@
 using UnityEngine;
 
-public enum PieceType
-{
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
-    None
-}
+// PieceType is defined in Chess/Core/ChessTypes.cs (shared with the rules core).
 
 public class ChessPiece : MonoBehaviour
 {
@@ -93,6 +84,4 @@ public class ChessPiece : MonoBehaviour
             return $"{color} {type} @ ({file},{rank})";
         return $"{color} {type} (captured)";
     }
-
-    public void OnPromoted() { }
 }

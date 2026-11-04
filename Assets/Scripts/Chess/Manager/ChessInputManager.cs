@@ -256,7 +256,7 @@ public sealed class ChessInputManager : MonoBehaviour
         for (int i = 0; i < moves.Count; i++)
         {
             Vector2Int to = moves[i];
-            bool isCapture = legalCache.CanCapture(to);
+            bool isCapture = legalCache.IsCapture(from, to);
 
             highlight.ShowSingle(
                 to.x,
@@ -278,10 +278,16 @@ public sealed class ChessInputManager : MonoBehaviour
         inputLocked = true;
         cacheDirty = true;
 
+        // 4-char UCI: a promotion defaults to a queen (no picker UI yet).
         string uci = SquareToUci(from, to);
-        await game.OnPlayerMoveRequested(uci);
-
-        inputLocked = false;
+        try
+        {
+            await game.OnPlayerMoveRequested(uci);
+        }
+        finally
+        {
+            inputLocked = false;
+        }
     }
 
     // ======================================================

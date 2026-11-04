@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using System.Collections.Generic;
 
 public class ChessPieceSpawner : MonoBehaviour
 {
@@ -23,77 +22,23 @@ public class ChessPieceSpawner : MonoBehaviour
     public GameObject blackKing;
 
     /// <summary>
-    /// Spawn all pieces in standard chess starting position.
-    /// Returns list of ChessPiece components successfully spawned.
+    /// Spawns one piece of the given type/colour on a board square.
+    /// Used for the initial setup (from any FEN) and for promotion (model swap).
+    /// Returns null when the prefab is missing or invalid.
     /// </summary>
-    public List<ChessPiece> SpawnAllPieces()
+    public ChessPiece SpawnPiece(PieceType type, bool isWhite, int file, int rank)
     {
         if (grid == null)
         {
             Debug.LogError("ChessPieceSpawner: Grid reference is NULL.");
-            return new List<ChessPiece>();
+            return null;
         }
 
-        var list = new List<ChessPiece>(32);
-
-        // White
-        SpawnPawnRank(1, whitePawn, true, list);
-        SpawnBackRankWhite(0, list);
-
-        // Black
-        SpawnPawnRank(6, blackPawn, false, list);
-        SpawnBackRankBlack(7, list);
-
-        return list;
-    }
-
-    // ============================================================
-    // INTERNAL SPAWN HELPERS
-    // ============================================================
-
-    private void SpawnPawnRank(int rank, GameObject pawnPrefab, bool isWhite, List<ChessPiece> list)
-    {
-        for (int file = 0; file < 8; file++)
-        {
-            SpawnOne(pawnPrefab, file, rank, isWhite, list);
-        }
-    }
-
-    private void SpawnBackRankWhite(int rank, List<ChessPiece> list)
-    {
-        SpawnOne(whiteRook, 0, rank, true, list);
-        SpawnOne(whiteKnight, 1, rank, true, list);
-        SpawnOne(whiteBishop, 2, rank, true, list);
-        SpawnOne(whiteQueen, 3, rank, true, list);
-        SpawnOne(whiteKing, 4, rank, true, list);
-        SpawnOne(whiteBishop, 5, rank, true, list);
-        SpawnOne(whiteKnight, 6, rank, true, list);
-        SpawnOne(whiteRook, 7, rank, true, list);
-    }
-
-    private void SpawnBackRankBlack(int rank, List<ChessPiece> list)
-    {
-        SpawnOne(blackRook, 0, rank, false, list);
-        SpawnOne(blackKnight, 1, rank, false, list);
-        SpawnOne(blackBishop, 2, rank, false, list);
-        SpawnOne(blackQueen, 3, rank, false, list);
-        SpawnOne(blackKing, 4, rank, false, list);
-        SpawnOne(blackBishop, 5, rank, false, list);
-        SpawnOne(blackKnight, 6, rank, false, list);
-        SpawnOne(blackRook, 7, rank, false, list);
-    }
-
-    private void SpawnOne(
-        GameObject prefab,
-        int file,
-        int rank,
-        bool expectedIsWhite,
-        List<ChessPiece> list)
-    {
+        GameObject prefab = GetPrefab(type, isWhite);
         if (prefab == null)
         {
-            Debug.LogError($"ChessPieceSpawner: Prefab is NULL at ({file},{rank})");
-            return;
+            Debug.LogError($"ChessPieceSpawner: No prefab for {(isWhite ? "White" : "Black")} {type} at ({file},{rank})");
+            return null;
         }
 
         ChessPiece prefabPiece = prefab.GetComponent<ChessPiece>();
@@ -101,15 +46,15 @@ public class ChessPieceSpawner : MonoBehaviour
         {
             Debug.LogError(
                 $"ChessPieceSpawner: Prefab '{prefab.name}' has NO ChessPiece component. Spawn aborted.");
-            return;
+            return null;
         }
 
-        if (prefabPiece.isWhite != expectedIsWhite)
+        if (prefabPiece.isWhite != isWhite)
         {
             Debug.LogError(
                 $"ChessPieceSpawner: Prefab '{prefab.name}' has isWhite={prefabPiece.isWhite} " +
-                $"but expected {expectedIsWhite}. Check prefab setup.");
-            return;
+                $"but expected {isWhite}. Check prefab setup.");
+            return null;
         }
 
         Vector3 pos = grid.BoardToWorld(file, rank);
@@ -122,12 +67,27 @@ public class ChessPieceSpawner : MonoBehaviour
             Debug.LogError(
                 $"ChessPieceSpawner: Instantiated object '{obj.name}' lost ChessPiece component.");
             Destroy(obj);
-            return;
+            return null;
         }
 
+        // The rules core is authoritative; keep the component in sync with it.
+        piece.type = type;
         piece.file = file;
         piece.rank = rank;
+        return piece;
+    }
 
-        list.Add(piece);
+    public GameObject GetPrefab(PieceType type, bool isWhite)
+    {
+        switch (type)
+        {
+            case PieceType.Pawn: return isWhite ? whitePawn : blackPawn;
+            case PieceType.Rook: return isWhite ? whiteRook : blackRook;
+            case PieceType.Knight: return isWhite ? whiteKnight : blackKnight;
+            case PieceType.Bishop: return isWhite ? whiteBishop : blackBishop;
+            case PieceType.Queen: return isWhite ? whiteQueen : blackQueen;
+            case PieceType.King: return isWhite ? whiteKing : blackKing;
+            default: return null;
+        }
     }
 }

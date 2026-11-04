@@ -88,6 +88,7 @@ public class ArenaController : MonoBehaviour
     public Action<Team> OnMatchEnd;
 
     private bool matchEnded = false;
+    private bool playerSpawned = false;
 
     // =========================
     // UNITY CALLBACKS
@@ -110,6 +111,14 @@ public class ArenaController : MonoBehaviour
         TrackSkills();
         UpdateSkillCooldownUI();
         CheckForDeadBlack();
+
+        // Player (White) dead -> Black wins. Checked first so a simultaneous
+        // death never reports a White win for a dead player.
+        if (IsPlayerDead())
+        {
+            EndMatch(Team.Black);
+            return;
+        }
 
         if (aliveBlack.Count == 0)
             EndMatch(Team.White);
@@ -240,6 +249,8 @@ public class ArenaController : MonoBehaviour
 
             if (!go.TryGetComponent(out playerPiece))
                 playerPiece = go.AddComponent<ChessPieceFPSController>();
+
+            playerSpawned = true;
 
             if (playerWeaponPrefab != null)
             {
@@ -519,7 +530,7 @@ public class ArenaController : MonoBehaviour
         var dead = new List<ChessPieceFPSController>();
 
         foreach (var piece in set)
-            if (!piece || !piece.gameObject.activeInHierarchy)
+            if (IsDead(piece))
                 dead.Add(piece);
 
         foreach (var piece in dead)
@@ -540,6 +551,19 @@ public class ArenaController : MonoBehaviour
         foreach (var clone in dead)
             clones.Remove(clone);
     }
+
+    // A piece is dead when it was destroyed, deactivated, or its health reached zero
+    // (ChessPieceHealth does not deactivate the GameObject by itself).
+    private static bool IsDead(ChessPieceFPSController piece)
+    {
+        if (!piece || !piece.gameObject.activeInHierarchy)
+            return true;
+
+        var health = piece.GetComponent<ChessPieceHealth>();
+        return health && !health.IsAlive;
+    }
+
+    private bool IsPlayerDead() => playerSpawned && IsDead(playerPiece);
 
     // =========================
     // CLONE MANAGEMENT
@@ -573,6 +597,7 @@ public class ArenaController : MonoBehaviour
     public void ClearArena()
     {
         matchEnded = false;
+        playerSpawned = false;
 
         if (playerPiece)
             Destroy(playerPiece.gameObject);
