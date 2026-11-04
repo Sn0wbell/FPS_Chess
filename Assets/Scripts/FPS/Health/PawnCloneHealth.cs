@@ -2,7 +2,9 @@
 using UnityEngine;
 
 /// <summary>
-/// A Pawn decoy: scatters on spawn, then stands still; has a little health; deals no damage.
+/// A Pawn decoy: thrown on spawn, then stands still; has a little health; deals no damage.
+/// It moves with the same physics as a real piece (ChessPieceFPSController: gravity, knock-back,
+/// being pushed / pulled), so every skill effect treats it exactly like the real pawn.
 /// Reports who killed it (the Pawn reveals that piece to its side). A clone that leaves the
 /// arena (falls off the floor) is defeated.
 /// </summary>
@@ -24,11 +26,7 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
     private bool hasArena;
     private Bounds arena;
 
-    private CharacterController controller;
-
-    // Scatter simulation
-    private Vector3 scatterVelocity;
-    private const float Gravity = -25f;
+    private ChessPieceFPSController fps;
 
     /// <summary>Hit to death and dissolving: no longer a valid target.</summary>
     public bool IsDying => dying;
@@ -36,12 +34,9 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
     public float CurrentHealth => currentHealth;
     public float MaxHealth => maxHealth;
 
-    /// <summary>Gravity used by the scatter flight (for landing prediction).</summary>
-    public static float ScatterGravity => Gravity;
-
     private void Awake()
     {
-        controller = GetComponent<CharacterController>();
+        fps = GetComponent<ChessPieceFPSController>();
 
         var marker = GetComponent<PawnCloneMarker>();
         if (!marker)
@@ -69,7 +64,6 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         maxHealth = Mathf.Max(1f, health);
         currentHealth = maxHealth;
 
-        scatterVelocity = initialVelocity;
         hasArena = ArenaController.Current != null && ArenaController.Current.TryGetBounds(out arena);
 
         timer = 0f;
@@ -77,6 +71,10 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
 
         gameObject.SetActive(true);
         DisableWeaponDamage();
+
+        // Thrown like the real pawn (same flight, same landing).
+        if (fps != null)
+            fps.AddExternalImpulse(initialVelocity);
     }
 
     private void Update()
@@ -89,20 +87,6 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         {
             Die(killedBy: null);
             return;
-        }
-
-        if (controller == null)
-            return;
-
-        scatterVelocity.y += Gravity * Time.deltaTime;
-
-        CollisionFlags flags = controller.Move(scatterVelocity * Time.deltaTime);
-
-        if ((flags & CollisionFlags.Below) != 0 && scatterVelocity.y < 0f)
-        {
-            scatterVelocity.y = 0f;
-            scatterVelocity.x *= 0.15f;
-            scatterVelocity.z *= 0.15f;
         }
 
         // Out of the arena (past its edge or fallen below it): defeated, nobody to reveal.

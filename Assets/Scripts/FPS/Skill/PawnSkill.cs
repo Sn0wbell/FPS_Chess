@@ -138,7 +138,7 @@ public class PawnSkill : ActiveSkill
             dir.y = Mathf.Abs(dir.y);
             v = dir.normalized * scatterForce + Vector3.up * upwardForce;
 
-            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, PawnCloneHealth.ScatterGravity), arenaMargin))
+            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, ChessPieceFPSController.ScatterGravity), arenaMargin))
                 return v;
         }
 

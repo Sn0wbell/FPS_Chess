@@ -86,7 +86,9 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     // SCATTER / MULTI-FRAME IMPULSE
     // =========================
     private Vector3 scatterVelocityOwner;
-    private float scatterGravity = -25f;
+    /// <summary>Gravity of a knock-back / scatter flight (also used to predict where a throw lands).</summary>
+    public const float ScatterGravity = -25f;
+    private float scatterGravity = ScatterGravity;
     private bool scatting = false;
     private bool scatterAirborne;
     private bool fireHeldThroughBlock;
@@ -282,7 +284,8 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         // A skill blocking Movement blocks the INPUT only; gravity / knock-back keep running
         // (charging skills turn gravity off themselves).
         // Dead pieces keep falling (no input) instead of freezing in mid-air.
-        if (!IsPawnClone && !IsMovementSuppressed)
+        // Pawn clones use exactly the same physics, so every skill effect treats them like real pieces.
+        if (!IsMovementSuppressed)
             HandleMovement(readInput: !IsDead && canMove && IsPlayerControlled && !IsBlockedBySkill(SkillBlockMask.Movement));
 
         if (!canMove && !canAct)
