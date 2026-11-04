@@ -24,6 +24,9 @@ public interface IOutgoingDamageBonus
 /// </summary>
 public static class SkillTargeting
 {
+    /// <summary>Reference mass of a chess piece (kg), to turn a piece's knock-back into momentum for heavier things (rook walls).</summary>
+    public const float PieceMass = 80f;
+
     public static ITeamOwned OwnerOf(Component c) =>
         c != null ? c.GetComponentInParent<ITeamOwned>() : null;
 
@@ -84,6 +87,22 @@ public static class SkillTargeting
     /// Both bodies also bounce up by <paramref name="bounce"/> x the impact strength.
     /// Velocities here are knock-back strengths (direction x force); a standing piece is zero.
     /// </summary>
+    /// <summary>
+    /// Blast knock-back away from <paramref name="from"/> (horizontal), strength fading from
+    /// <paramref name="force"/> at the centre to 0 at <paramref name="radius"/>, plus a bounce of
+    /// <paramref name="bounce"/> x that strength.
+    /// </summary>
+    public static Vector3 RadialKnock(Vector3 from, Vector3 to, float radius, float force, float bounce)
+    {
+        Vector3 flat = to - from;
+        flat.y = 0f;
+        float distance = flat.magnitude;
+        flat = distance > 1e-3f ? flat / distance : Vector3.forward;
+
+        float strength = force * (1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, radius)));
+        return flat * strength + Vector3.up * (bounce * strength);
+    }
+
     /// <returns>The impact strength (closing speed along the line of centres); 0 or less = no collision.</returns>
     public static float BilliardCollision(Vector3 posA, Vector3 velA, Vector3 posB, Vector3 velB, float bounce,
         out Vector3 newVelA, out Vector3 newVelB)

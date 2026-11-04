@@ -453,6 +453,9 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         scatterAirborne = false;
     }
 
+    /// <summary>Flying / sliding from a knock-back right now.</summary>
+    public bool IsKnockedBack => scatting;
+
     public void ApplyExternalVerticalVelocity(float velocity)
     {
         verticalVelocity = velocity;
@@ -1089,6 +1092,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         bool blocked = attackPointBlocked || weaponColliderBlocked;
 
         if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
+        if (!blocked && IsActionLocked) blocked = true; // locked by a skill (e.g. the queen firing): weapon held in the blocked pose
 
         if (blocked != currentWeapon.GetBlocked())
         {

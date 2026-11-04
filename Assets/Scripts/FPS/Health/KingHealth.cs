@@ -34,6 +34,10 @@ public class KingHealth : ChessPieceHealth
 
     [SerializeField] private float shieldBlockAngle = 90f;
 
+    [Tooltip("Grenade (explosive) damage removed while the shield is up, from any direction (0.3 = 30% less). Does not wear the shield.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float shieldExplosiveReduction = 0.3f;
+
     public bool ShieldActive { get; private set; }
 
     public event Action<float> OnShieldDamaged;
@@ -62,7 +66,12 @@ public class KingHealth : ChessPieceHealth
         // 1. SHIELD (MULTIPLIER)
         // -------------------------
 
-        if (ShieldActive && shieldIntegrity > 0f)
+        if (ShieldActive && shieldIntegrity > 0f && info.type == DamageType.Explosive)
+        {
+            // Grenades: only reduced by a percentage, whatever the direction.
+            damage *= 1f - shieldExplosiveReduction;
+        }
+        else if (ShieldActive && shieldIntegrity > 0f)
         {
             float angle = Vector3.Angle(
                 transform.forward,

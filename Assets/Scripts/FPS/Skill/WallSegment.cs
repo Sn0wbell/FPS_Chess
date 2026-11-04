@@ -27,6 +27,8 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
 
     public Team Team => team;
     public bool IsToppled { get; private set; }
+    /// <summary>Pushed by a skill: a free rigid body (it may rock or tip over).</summary>
+    public bool IsLoose { get; private set; }
     public float CurrentHealth => currentHealth;
 
     private void Awake()
@@ -78,7 +80,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
     /// <summary>Dash over: the segment drops to the ground and stays upright (rotation locked).</summary>
     public void EnableGravity()
     {
-        if (IsToppled) return;
+        if (IsToppled || IsLoose) return;
 
         rb.isKinematic = false;
         rb.useGravity = true;
@@ -109,6 +111,24 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
         rb.AddForceAtPosition(dir * force, top, ForceMode.VelocityChange);
     }
 
+    /// <summary>
+    /// Pushed by a skill (e.g. the queen's shockwave): <paramref name="impulse"/> is momentum (kg m/s),
+    /// so this heavy wall moves far less than a piece would. Applied above its centre: near the source it
+    /// is thrown, at the edge it only rocks or tips over.
+    /// </summary>
+    public void Push(Vector3 impulse)
+    {
+        if (!gameObject.activeInHierarchy || impulse.sqrMagnitude < 1e-6f) return;
+        IsLoose = true;
+
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.constraints = RigidbodyConstraints.None;
+
+        Vector3 above = col.bounds.center + Vector3.up * (col.bounds.extents.y * 0.5f);
+        rb.AddForceAtPosition(impulse, above, ForceMode.Impulse);
+    }
+
     public void ReturnToPool()
     {
         if (lifeRoutine != null)
@@ -126,6 +146,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
         rb.isKinematic = true;
         rb.constraints = RigidbodyConstraints.FreezeAll;
         IsToppled = false;
+        IsLoose = false;
 
         if (owner != null)
             owner.ReturnToPool(this);
