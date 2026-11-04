@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using static UnityEngine.EventSystems.StandaloneInputModule;
 
 public enum MovementOverrideSource
 {
@@ -11,8 +10,45 @@ public enum MovementOverrideSource
 }
 
 [RequireComponent(typeof(CharacterController))]
-public class ChessPieceFPSController : MonoBehaviour
+public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 {
+    // =========================
+    // TEAM / OWNERSHIP
+    // =========================
+    [Header("Team")]
+    [Tooltip("Side of this piece. Set by the arena on spawn; skills never damage allies.")]
+    [SerializeField] private Team team = Team.White;
+
+    public Team Team => team;
+    public void SetTeam(Team value) => team = value;
+
+    /// <summary>Only the player's piece reads keyboard/mouse. AI pieces are driven by code.</summary>
+    public bool IsPlayerControlled { get; private set; }
+    public void SetPlayerControlled(bool value) => IsPlayerControlled = value;
+
+    private bool isDeadRaw;
+    private PawnCloneHealth cloneHealth;
+
+    /// <summary>Dead piece, or a pawn clone that is dissolving.</summary>
+    public bool IsDead => isDeadRaw || (cloneHealth != null && cloneHealth.IsDying);
+
+    /// <summary>Pawn decoys move themselves (PawnCloneHealth); this controller must not add physics.</summary>
+    public bool IsPawnClone => cloneHealth != null;
+
+    // Keyed action locks (e.g. the Queen while firing): no shooting / skill input while any is held.
+    private readonly HashSet<object> actionLocks = new HashSet<object>();
+
+    public void SetActionLocked(object owner, bool locked)
+    {
+        if (owner == null) return;
+        if (locked) actionLocks.Add(owner);
+        else actionLocks.Remove(owner);
+    }
+
+    public bool IsActionLocked => actionLocks.Count > 0;
+
+    private ChessPieceHealth health;
+
     // =========================
     // CORE
     // =========================
@@ -36,7 +72,13 @@ public class ChessPieceFPSController : MonoBehaviour
 
     private float verticalVelocity;
     private bool isGrounded;
-    private bool useGravity = true;
+
+    // Gravity is off while ANY owner (a skill) disables it: overlapping skills never fight over one bool.
+    private readonly HashSet<object> gravityDisablers = new HashSet<object>();
+    private bool useGravity => gravityDisablers.Count == 0;
+
+    // Forced displacement (Queen push, King pull, Bishop pull): one owner at a time.
+    private object forcedMoveOwner;
     private bool isJumping;
     private Vector3 jumpMoveDirection;
 
@@ -46,6 +88,13 @@ public class ChessPieceFPSController : MonoBehaviour
     private Vector3 scatterVelocityOwner;
     private float scatterGravity = -25f;
     private bool scatting = false;
+    private bool scatterAirborne;
+
+    [Header("Knock-back")]
+    [Tooltip("Ground friction for horizontal knock-backs (higher = shorter slide).")]
+    [SerializeField] private float knockbackGroundFriction = 8f;
+    [Tooltip("A sliding knock-back ends below this speed (m/s).")]
+    [SerializeField] private float knockbackStopSpeed = 0.5f;
 
     // =========================
     // MOUSE LOOK
@@ -110,8 +159,8 @@ public class ChessPieceFPSController : MonoBehaviour
     private float jumpOverrideMul = 1f;
     private bool hasMoveOverride;
 
-    private readonly Dictionary<MovementOverrideSource, Vector2> overrides
-        = new Dictionary<MovementOverrideSource, Vector2>();
+    private readonly Dictionary<object, Vector2> overrides
+        = new Dictionary<object, Vector2>();
 
     // =========================
     // SKILL
@@ -134,55 +183,122 @@ public class ChessPieceFPSController : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // The piece owns its skills: one initialization, one tick per frame (see TickSkills).
+        boundSkills.Clear();
+        foreach (var skill in GetComponentsInChildren<ActiveSkill>(true))
+        {
+            if (skill == null) continue;
+            boundSkills.Add(skill);
+            if (skill is IAbortableMovementSkill abortable)
+                abortableMovementSkills.Add(abortable);
+        }
+        RefreshSkillContext();
+
+        health = GetComponent<ChessPieceHealth>();
+        if (health != null)
+            health.OnDeath += HandleDeath;
+
+        cloneHealth = GetComponent<PawnCloneHealth>();
     }
 
-    void Start()
+    void OnDestroy()
     {
-        var skillController = FindAnyObjectByType<SkillController>();
-        if (skillController != null)
+        if (health != null)
+            health.OnDeath -= HandleDeath;
+    }
+
+    /// <summary>(Re)initializes every skill with the full context (call again when the weapon changes).</summary>
+    public void RefreshSkillContext()
+    {
+        SkillContext ctx = new SkillContext
         {
-            ActiveSkill[] skills = GetComponentsInChildren<ActiveSkill>(true);
-            foreach (var skill in skills)
-            {
-                if (skill != null)
-                {
-                    boundSkills.Add(skill);
+            owner = gameObject,
+            transform = transform,
+            fps = this,
+            weapon = currentWeapon,
+            controller = controller,
+            deltaTime = Time.deltaTime
+        };
 
-                    SkillContext ctx = new SkillContext
-                    {
-                        fps = this,
-                        controller = controller
-                    };
-                    skill.Initialize(ctx);
-                    skillController.RegisterSkillRuntime(skill);
+        foreach (var skill in boundSkills)
+            if (skill != null)
+                skill.Initialize(ctx);
+    }
 
-                    if (skill is IAbortableMovementSkill abortable)
-                        abortableMovementSkills.Add(abortable);
-                }
-            }
+    /// <summary>Union of the block masks of this piece's active skills.</summary>
+    public SkillBlockMask ActiveBlockMask
+    {
+        get
+        {
+            SkillBlockMask mask = SkillBlockMask.None;
+            foreach (var s in boundSkills)
+                if (s != null && s.State == SkillState.Active)
+                    mask |= s.blockMask;
+            return mask;
         }
+    }
+
+    private bool IsBlockedBySkill(SkillBlockMask m) => (ActiveBlockMask & m) != 0;
+
+    void TickSkills()
+    {
+        SkillContext ctx = new SkillContext
+        {
+            owner = gameObject,
+            transform = transform,
+            fps = this,
+            weapon = currentWeapon,
+            controller = controller,
+            deltaTime = Time.deltaTime
+        };
+
+        foreach (var skill in boundSkills)
+            if (skill != null)
+                skill.Tick(ctx);
+    }
+
+    void HandleDeath()
+    {
+        if (isDeadRaw) return;
+        isDeadRaw = true;
+
+        DisableControl();
+        foreach (var skill in boundSkills)
+            if (skill != null)
+                skill.ForceCancel(); // releases every effect it put on other pieces
     }
 
     void Update()
     {
+        // Skills run even while the piece cannot be controlled (e.g. AI pieces), exactly once per frame.
+        TickSkills();
+
+        // Physics (gravity, knock-back flight) applies to EVERY living piece, AI included;
+        // only the player's piece adds keyboard input to it.
+        // A skill blocking Movement blocks the INPUT only; gravity / knock-back keep running
+        // (charging skills turn gravity off themselves).
+        // Dead pieces keep falling (no input) instead of freezing in mid-air.
+        if (!IsPawnClone && !IsMovementSuppressed)
+            HandleMovement(readInput: !IsDead && canMove && IsPlayerControlled && !IsBlockedBySkill(SkillBlockMask.Movement));
+
         if (!canMove && !canAct)
             return;
 
-        if (canMove && !IsMovementSuppressed)
-            HandleMovement();
-
-        if (canAct)
+        if (canAct && IsPlayerControlled && !IsActionLocked)
         {
             HandleSkillInput();
         }
 
-        HandleMouseLook();
+        if (IsPlayerControlled)
+            HandleMouseLook();
         HandleWeaponBlock();
         UpdateWeaponSystemPosition();
 
-        if (canAct)
+        if (canAct && IsPlayerControlled)
         {
-            HandleWeaponInput();
+            // When attacking is blocked the gun still sees "trigger released / not aiming".
+            HandleWeaponInput(attackBlocked: IsActionLocked || IsBlockedBySkill(SkillBlockMask.Attack));
         }
 
         bool shotThisFrame = currentGun != null &&  currentGun.IsShooting();
@@ -221,11 +337,51 @@ public class ChessPieceFPSController : MonoBehaviour
     public void DisableAction() { canAct = false; }
     public void EnableAction() { canAct = true; }
 
-    public void SetGravityEnabled(bool enabled)
+    /// <summary>Gravity stays off while at least one owner disables it.</summary>
+    public void SetGravityEnabled(object owner, bool enabled)
     {
-        useGravity = enabled;
-        if (!enabled)
+        if (owner == null) return;
+
+        if (enabled)
+        {
+            gravityDisablers.Remove(owner);
+        }
+        else
+        {
+            gravityDisablers.Add(owner);
             verticalVelocity = 0f;
+        }
+    }
+
+    public bool IsGravityEnabled => useGravity;
+
+    // ---- forced displacement ownership ----
+    public bool IsUnderForcedMove => forcedMoveOwner != null;
+
+    /// <summary>Claims this piece for a forced displacement. False when another owner already moves it.</summary>
+    public bool TryBeginForcedMove(object owner)
+    {
+        if (owner == null) return false;
+        if (forcedMoveOwner != null && !ReferenceEquals(forcedMoveOwner, owner)) return false;
+
+        bool newClaim = forcedMoveOwner == null;
+        forcedMoveOwner = owner;
+
+        // Another skill now moves this piece: its own leap / dash / grapple stops
+        // (two owners never move one piece). A skill claiming its own piece is not cancelled.
+        if (newClaim)
+        {
+            foreach (var skill in boundSkills)
+                if (skill != null && !ReferenceEquals(skill, owner) && skill.State == SkillState.Active && skill is IMovementOverride)
+                    skill.ForceCancel();
+        }
+        return true;
+    }
+
+    public void EndForcedMove(object owner)
+    {
+        if (ReferenceEquals(forcedMoveOwner, owner))
+            forcedMoveOwner = null;
     }
     public void ForceStopAllMotion()
     {
@@ -279,9 +435,12 @@ public class ChessPieceFPSController : MonoBehaviour
 
         ForceStopAllMotion();
     }
+    /// <summary>Knock-back. Hits that land while already flying add up instead of replacing each other.</summary>
     public void AddExternalImpulse(Vector3 impulse)
     {
-        scatterVelocityOwner = impulse;
+        if (!scatting)
+            scatterAirborne = false;
+        scatterVelocityOwner = scatting ? scatterVelocityOwner + impulse : impulse;
         scatting = true;
     }
 
@@ -292,7 +451,7 @@ public class ChessPieceFPSController : MonoBehaviour
 
     void HandleSkillInput()
     {
-        if (!canAct || boundSkills.Count == 0) return;
+        if (!canAct || boundSkills.Count == 0 || Keyboard.current == null) return;
 
         if (Keyboard.current.fKey.wasPressedThisFrame)
         {
@@ -371,6 +530,7 @@ public class ChessPieceFPSController : MonoBehaviour
         }
 
         currentWeapon = weaponObject.GetComponent<WeaponController>();
+        RefreshSkillContext(); // skills see the new weapon
         if (currentWeapon is GunController gun)
         {
             currentGun = gun;
@@ -386,19 +546,22 @@ public class ChessPieceFPSController : MonoBehaviour
         currentWeaponLocalRot = defaultWeaponLocalRot;
     }
 
-    void HandleWeaponInput()
+    void HandleWeaponInput(bool attackBlocked)
     {
         if (!canAct || currentWeapon == null) return;
         if (Mouse.current == null) return;
 
-        if (Mouse.current.leftButton.isPressed)
+        bool firePressed = !attackBlocked && Mouse.current.leftButton.isPressed;
+        bool aimPressed = !attackBlocked && Mouse.current.rightButton.isPressed;
+
+        if (firePressed)
         {
             currentWeapon.TryAttack();
         }
 
         if (currentGun != null)
         {
-            if (Mouse.current.rightButton.isPressed && !currentGun.GetBlocked() && (weaponBlockDelayTime <= 0))
+            if (aimPressed && !currentGun.GetBlocked() && (weaponBlockDelayTime <= 0))
             {
                 currentGun.SetAiming(true);
             }
@@ -407,14 +570,14 @@ public class ChessPieceFPSController : MonoBehaviour
                 currentGun.SetAiming(false);
             }
 
-            if (!Mouse.current.leftButton.isPressed)
+            if (!firePressed)
             {
                 if(!currentGun.GetTriggerReleasedSinceLastShot()) currentGun.ResetHorizontalRecoilDirection();
                 currentGun.SetTriggerReleasedSinceLastShot(true);
                 currentGun.SetRequireTriggerReleaseAfterReload(false);
             }
 
-            if (Keyboard.current == null) return;
+            if (Keyboard.current == null || attackBlocked) return;
 
             if (Keyboard.current.bKey.wasPressedThisFrame)
             {
@@ -714,15 +877,17 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     // MOVEMENT OVERRIDE
     // =========================
-    public void OverrideMovement(MovementOverrideSource source, float moveMul, float jumpMul)
+    /// <summary>Speed/jump multipliers keyed by owner (a skill instance or a source enum).</summary>
+    public void OverrideMovement(object owner, float moveMul, float jumpMul)
     {
-        overrides[source] = new Vector2(Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
+        if (owner == null) return;
+        overrides[owner] = new Vector2(Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
         RecalculateOverrides();
     }
 
-    public void ClearOverrideMovement(MovementOverrideSource source)
+    public void ClearOverrideMovement(object owner)
     {
-        if (overrides.Remove(source))
+        if (owner != null && overrides.Remove(owner))
             RecalculateOverrides();
     }
 
@@ -743,28 +908,36 @@ public class ChessPieceFPSController : MonoBehaviour
     // =========================
     // MOVEMENT
     // =========================
-    void HandleMovement()
+    void HandleMovement(bool readInput)
     {
         isGrounded = controller.isGrounded;
 
         if (isGrounded && verticalVelocity <= 0f)
         {
             isJumping = false;
+
+            // Fix: never keep the fall speed accumulated in the air while standing
+            // (walking off a ledge later would drop at that old speed).
+            if (verticalVelocity < -2f)
+                verticalVelocity = -2f;
         }
 
-        if (Keyboard.current == null) return;
+        Keyboard kb = readInput ? Keyboard.current : null;
 
         Vector2 input = Vector2.zero;
-        if (Keyboard.current.wKey.isPressed) input.y += 1;
-        if (Keyboard.current.sKey.isPressed) input.y -= 1;
-        if (Keyboard.current.aKey.isPressed) input.x -= 1;
-        if (Keyboard.current.dKey.isPressed) input.x += 1;
+        if (kb != null)
+        {
+            if (kb.wKey.isPressed) input.y += 1;
+            if (kb.sKey.isPressed) input.y -= 1;
+            if (kb.aKey.isPressed) input.x -= 1;
+            if (kb.dKey.isPressed) input.x += 1;
+        }
 
         input = Vector2.ClampMagnitude(input, 1f);
         Vector3 inputDirection = transform.right * input.x + transform.forward * input.y;
         float speed = hasMoveOverride ? moveSpeed * moveOverrideMul : moveSpeed;
 
-        if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded)
+        if (kb != null && kb.spaceKey.wasPressedThisFrame && isGrounded && !IsBlockedBySkill(SkillBlockMask.Jump))
         {
             float jump = hasMoveOverride ? jumpHeight * jumpOverrideMul : jumpHeight;
             verticalVelocity = Mathf.Sqrt(jump * -2f * gravity);
@@ -784,13 +957,30 @@ public class ChessPieceFPSController : MonoBehaviour
 
             Vector3 scrat = scatterVelocityOwner * Time.deltaTime;
             CollisionFlags flags = controller.Move(scrat);
+            bool onGround = (flags & CollisionFlags.Below) != 0 && scatterVelocityOwner.y < 0f;
 
-            if ((flags & CollisionFlags.Below) != 0 && scatterVelocityOwner.y < 0f)
+            if (!onGround)
             {
+                scatterAirborne = true;
+            }
+            else if (scatterAirborne)
+            {
+                // Landing after a real flight: stop (as before).
                 scatting = false;
                 scatterVelocityOwner.y = 0f;
                 scatterVelocityOwner.x *= 0.15f;
                 scatterVelocityOwner.z *= 0.15f;
+            }
+            else
+            {
+                // Horizontal knock-back that never left the ground: slide with friction.
+                // (It used to stop on the first frame: a 15 m/s push moved a piece ~0.25 m.)
+                scatterVelocityOwner.y = 0f;
+                float k = Mathf.Exp(-knockbackGroundFriction * Time.deltaTime);
+                scatterVelocityOwner.x *= k;
+                scatterVelocityOwner.z *= k;
+                if (new Vector2(scatterVelocityOwner.x, scatterVelocityOwner.z).magnitude < knockbackStopSpeed)
+                    scatting = false;
             }
         }
         else

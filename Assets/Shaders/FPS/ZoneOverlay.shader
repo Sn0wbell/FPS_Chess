@@ -39,7 +39,7 @@ Shader "FPS/ZoneOverlay"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
-            #define MAX_CAGE 16
+            #define MAX_CAGE 32 // keep in sync with ZoneOverlaySystem.MAX_CAGE
 
             struct Attributes
             {

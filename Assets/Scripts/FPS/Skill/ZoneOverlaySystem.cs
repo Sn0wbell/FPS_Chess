@@ -3,7 +3,35 @@ using System.Collections.Generic;
 
 public static class ZoneOverlaySystem
 {
-    const int MAX_CAGE = 16;
+    // Must match "#define MAX_CAGE" in Shaders/FPS/ZoneOverlay.shader.
+    public const int MAX_CAGE = 32;
+
+    /// <summary>How many more zones can be shown right now.</summary>
+    public static int FreeSlots => MAX_CAGE - cages.Count;
+
+    private static bool dirty;
+    private static int lastFlushFrame = -1;
+
+    // Static state survives between play sessions when domain reload is off: start clean.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        cages.Clear();
+        nextId = 1;
+        dirty = false;
+        lastFlushFrame = -1;
+        UploadToShader();
+    }
+
+    /// <summary>Uploads pending position/colour changes once per frame (called by active zones).</summary>
+    public static void FlushIfDirty()
+    {
+        if (!dirty || lastFlushFrame == Time.frameCount)
+            return;
+        lastFlushFrame = Time.frameCount;
+        dirty = false;
+        UploadToShader();
+    }
 
     public enum ZoneOverlayType
     {
@@ -51,7 +79,10 @@ public static class ZoneOverlaySystem
     )
     {
         if (cages.Count >= MAX_CAGE)
+        {
+            Debug.LogWarning($"ZoneOverlaySystem: {MAX_CAGE} zones already shown; this zone is not drawn.");
             return -1;
+        }
 
         int id = nextId++;
 
@@ -94,7 +125,7 @@ public static class ZoneOverlaySystem
             c.maxY = maxY;
             cages[i] = c;
 
-            UploadToShader();
+            dirty = true; // uploaded once per frame by FlushIfDirty
             return;
         }
     }
@@ -121,7 +152,7 @@ public static class ZoneOverlaySystem
             c.color = color;
             cages[i] = c;
 
-            UploadToShader();
+            dirty = true; // uploaded once per frame by FlushIfDirty
             return;
         }
     }

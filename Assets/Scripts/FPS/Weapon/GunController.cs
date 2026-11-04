@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using static UnityEditor.Searcher.SearcherWindow.Alignment;
 
 public enum FireMode
 {
@@ -207,6 +206,30 @@ public class GunController : WeaponController
     {
         return currentFireMode;
     }
+    private ChessPieceFPSController ownerPiece;
+    private IOutgoingDamageBonus[] ownerBonuses;
+
+    /// <summary>
+    /// Damage multiplier for the shot fired now, from the owner's skills (e.g. the Knight's
+    /// landing bonus). Call ONCE per shot: one-shot bonuses are consumed.
+    /// </summary>
+    protected float ConsumeShotDamageMultiplier()
+    {
+        if (ownerPiece == null)
+        {
+            ownerPiece = GetComponentInParent<ChessPieceFPSController>();
+            ownerBonuses = ownerPiece != null ? ownerPiece.GetComponents<IOutgoingDamageBonus>() : null;
+        }
+        if (ownerBonuses == null)
+            return 1f;
+
+        float multiplier = 1f;
+        for (int i = 0; i < ownerBonuses.Length; i++)
+            if (ownerBonuses[i] != null)
+                multiplier *= ownerBonuses[i].ConsumeShotDamageMultiplier();
+        return multiplier;
+    }
+
     public void setDamage(float newDamage)
     {
         damage = newDamage;
@@ -589,12 +612,13 @@ public class GunController : WeaponController
         }
 
         // Spawn bullet
+        float shotMultiplier = ConsumeShotDamageMultiplier();
         var bullet = BulletPoolManager.Instance.GetBullet(attackPoint.position, bulletRotation);
         if (bullet.TryGetComponent<Bullet>(out var bulletScript))
         {
             bulletScript.Speed = bulletSpeed;
             bulletScript.LifeTime = bulletLifeTime;
-            bulletScript.BaseDamage = damage;
+            bulletScript.BaseDamage = damage * shotMultiplier;
             bulletScript.MaxRange = range;
             bulletScript.Source = gameObject;
 

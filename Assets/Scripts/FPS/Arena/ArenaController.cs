@@ -81,8 +81,6 @@ public class ArenaController : MonoBehaviour
 
     private HashSet<ChessPieceFPSController> aliveBlack = new();
     private HashSet<PawnCloneHealth> activeBlackClones = new();
-    private Dictionary<ChessPieceFPSController, List<BaseSkill>> pieceSkills = new();
-    private Dictionary<ChessPieceFPSController, SkillContext> cachedContexts = new();
 
     public Action<ChessPieceFPSController> OnChessPieceDeath;
     public Action<Team> OnMatchEnd;
@@ -96,7 +94,6 @@ public class ArenaController : MonoBehaviour
     void Awake()
     {
         SpawnTeams();
-        CacheAllSkills();
         BindPlayerCamera();
         BindFPSUI();
     }
@@ -108,7 +105,6 @@ public class ArenaController : MonoBehaviour
     {
         if (matchEnded) return;
 
-        TrackSkills();
         UpdateSkillCooldownUI();
         CheckForDeadBlack();
 
@@ -250,6 +246,8 @@ public class ArenaController : MonoBehaviour
             if (!go.TryGetComponent(out playerPiece))
                 playerPiece = go.AddComponent<ChessPieceFPSController>();
 
+            playerPiece.SetTeam(Team.White);
+
             playerSpawned = true;
 
             if (playerWeaponPrefab != null)
@@ -257,7 +255,8 @@ public class ArenaController : MonoBehaviour
                 playerPiece.BindWeapon(playerWeaponPrefab, pointCenterScope, pointTopScope, pointBottomScope, pointLeftScope, pointRightScope);
 
 
-                weaponHUD.SetWeapon(playerPiece.GetCurrentWeapon());
+                if (weaponHUD != null)
+                    weaponHUD.SetWeapon(playerPiece.GetCurrentWeapon());
             }
         }
 
@@ -282,6 +281,8 @@ public class ArenaController : MonoBehaviour
                     fps = go.AddComponent<ChessPieceFPSController>();
 
                 fps.DisableControl(); // AI-ready
+                fps.SetTeam(Team.Black);
+                fps.SetPlayerControlled(false);
                 aliveBlack.Add(fps);
 
                 col++;
@@ -353,81 +354,22 @@ public class ArenaController : MonoBehaviour
         mainCam.transform.localPosition = Vector3.zero;
         mainCam.transform.localRotation = Quaternion.identity;
 
+        playerPiece.SetPlayerControlled(true); // only this piece reads keyboard / mouse
+        RevealSystem.LocalViewerTeam = playerPiece.Team; // reveals for this side are drawn on screen
         playerPiece.EnableControl();
     }
 
     // =========================
     // SKILL MANAGEMENT
     // =========================
-    private void CacheAllSkills()
-    {
-        pieceSkills.Clear();
-        cachedContexts.Clear();
+    // Skills are owned, initialized and ticked by each piece (ChessPieceFPSController).
 
-        if (playerPiece != null)
-            CacheSkillContext(playerPiece);
-
-        foreach (var piece in aliveBlack)
-            CacheSkillContext(piece);
-    }
-    private void CacheSkillContext(ChessPieceFPSController piece)
-    {
-        if (!piece || cachedContexts.ContainsKey(piece)) return;
-
-        if (!piece.TryGetComponent<CharacterController>(out var cc))
-            cc = piece.gameObject.AddComponent<CharacterController>();
-
-        SkillContext ctx = new SkillContext
-        {
-            owner = piece.gameObject,
-            transform = piece.transform,
-            fps = piece,
-            controller = cc,
-            deltaTime = Time.deltaTime
-        };
-
-        cachedContexts[piece] = ctx;
-
-        // Initialize all skills
-        if (!pieceSkills.TryGetValue(piece, out var skills))
-            skills = new List<BaseSkill>(piece.GetComponents<BaseSkill>());
-
-        foreach (var skill in skills)
-            skill.Initialize(ctx);
-
-        pieceSkills[piece] = skills;
-    }
-
-    private void TrackSkills()
-    {
-        foreach (var kv in pieceSkills)
-        {
-            var piece = kv.Key;
-            if (!piece) continue;
-
-            if (!cachedContexts.TryGetValue(piece, out var ctx)) continue;
-
-            // chỉ cập nhật deltaTime mỗi frame
-            ctx.deltaTime = Time.deltaTime;
-
-            foreach (var skill in kv.Value)
-            {
-                if (skill == null) continue;
-
-                // phòng ngừa NullReference
-                if (ctx.controller == null || ctx.fps == null || ctx.transform == null) continue;
-
-                skill.Tick(ctx);
-            }
-        }
-    }
     private BaseSkill GetPlayerSkillForUI()
     {
         if (!playerPiece)
             return null;
 
-        if (!pieceSkills.TryGetValue(playerPiece, out var skills))
-            return null;
+        List<ActiveSkill> skills = playerPiece.boundSkills;
 
         if (skills == null || skills.Count == 0)
             return null;
@@ -612,8 +554,6 @@ public class ArenaController : MonoBehaviour
 
         aliveBlack.Clear();
         activeBlackClones.Clear();
-        cachedContexts.Clear();
-        pieceSkills.Clear();
         outOfBoundsTimers.Clear();
     }
 

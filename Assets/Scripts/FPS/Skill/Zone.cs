@@ -72,6 +72,22 @@ public class Zone : MonoBehaviour
         UpdatePulse();
     }
 
+    protected void LateUpdate()
+    {
+        ZoneOverlaySystem.FlushIfDirty();
+    }
+
+    // Destroyed or disabled without Deactivate() (scene unload, owner destroyed):
+    // never leave a stale zone registered in the static overlay list.
+    protected void OnDisable()
+    {
+        if (cageId >= 0)
+        {
+            ZoneOverlaySystem.Unregister(cageId);
+            cageId = -1;
+        }
+    }
+
     // =========================
     // PUBLIC API
     // =========================

@@ -1,73 +1,53 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// DEPRECATED. Skills are now owned, initialized and ticked by their piece
+/// (ChessPieceFPSController), exactly once per frame. This component is kept only so
+/// existing scenes that reference it still load; it no longer ticks anything
+/// (ticking here as well made skills run twice per frame).
+/// </summary>
 public class SkillController : MonoBehaviour
 {
     public List<ActiveSkill> activeSkills = new();
     public List<PassiveSkill> passiveSkills = new();
 
-    private SkillContext context;
-
     public SkillBlockMask CurrentBlockMask { get; private set; }
 
-    // =========================
-    // RUNTIME SKILL REGISTRATION
-    // =========================
     public void RegisterSkillRuntime(ActiveSkill skill)
     {
-        if (!activeSkills.Contains(skill))
-        {
+        if (skill != null && !activeSkills.Contains(skill))
             activeSkills.Add(skill);
-        }
     }
 
     public void Initialize(SkillContext ctx)
     {
-        context = ctx;
-
         foreach (var p in passiveSkills)
-            p.Initialize(ctx);
-
-        foreach (var a in activeSkills)
-            a.Initialize(ctx);
+            if (p != null) p.Initialize(ctx);
     }
 
     void Update()
     {
-        context.deltaTime = Time.deltaTime;
-
+        // Informational only: no Tick() here.
         CurrentBlockMask = SkillBlockMask.None;
-
-        // Tick active skills
         foreach (var s in activeSkills)
-        {
-            s.Tick(context);
-
-            if (s.State == SkillState.Active)
+            if (s != null && s.State == SkillState.Active)
                 CurrentBlockMask |= s.blockMask;
-        }
     }
 
-    public bool IsBlocked(SkillBlockMask mask)
-    {
-        return (CurrentBlockMask & mask) != 0;
-    }
+    public bool IsBlocked(SkillBlockMask mask) => (CurrentBlockMask & mask) != 0;
 
     public void ForceCancelMovementSkills()
     {
         foreach (var skill in activeSkills)
-        {
             if (skill is IMovementOverride)
                 skill.ForceCancel();
-        }
     }
 
     public void ForceCancel(System.Predicate<ActiveSkill> predicate)
     {
         foreach (var skill in activeSkills)
-        {
-            if (predicate(skill))
+            if (skill != null && predicate(skill))
                 skill.ForceCancel();
-        }
     }
 }

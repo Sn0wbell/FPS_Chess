@@ -5,6 +5,15 @@ public class PawnCloneMarker : MonoBehaviour
 {
     public bool IsClone;
 }
+
+/// <summary>
+/// PAWN — decoys. Spawns clones that scatter in random directions (the pawn itself is flung
+/// the same way, so it mixes in), all landing inside the arena. Clones carry a copy of the
+/// pawn's weapon (visual only), have a little health and deal no damage.
+/// Whoever kills a clone is revealed to the pawn's side through walls for a few seconds.
+/// The skill stays active while clones live; its cooldown starts when the last clone is gone
+/// (killed or expired).
+/// </summary>
 public class PawnSkill : ActiveSkill
 {
     [Header("Clone Settings")]
@@ -12,12 +21,27 @@ public class PawnSkill : ActiveSkill
     [SerializeField] private int cloneCount = 5;
     [Tooltip("Lifetime of each clone in seconds")]
     [SerializeField] private float cloneLifetime = 3f;
+    [Tooltip("Clone health: it takes a few hits to tell a decoy from the real pawn.")]
+    [SerializeField] private float cloneHealth = 30f;
 
-    [Header("Scatter")]
+    [Header("Scatter (clones and the pawn itself)")]
     [SerializeField] private float scatterForce = 6f;
     [SerializeField] private float upwardForce = 2.5f;
     [SerializeField] private float spawnRadius = 1f;
     [SerializeField] private int maxSpawnAttempts = 10;
+    [Tooltip("Thrown bodies must land at least this far inside the arena edge (m).")]
+    [SerializeField] private float arenaMargin = 1f;
+
+    [Header("Spawn Checks")]
+    [Tooltip("Ground / walls used to place clones (exclude the pieces layer).")]
+    [SerializeField] private LayerMask groundMask = 1; // Default
+    [SerializeField] private float cloneRadius = 0.35f;
+
+    [Header("Reveal The Killer")]
+    [Tooltip("Seconds the piece that killed a clone stays visible to the pawn's side, through walls.")]
+    [SerializeField] private float revealSeconds = 2f;
+    [Tooltip("Material made from the 'FPSChess/XRayReveal' shader (a runtime fallback is created if empty).")]
+    [SerializeField] private Material revealMaterial;
 
     [Header("VFX")]
     [SerializeField] private GameObject spawnVFX;
@@ -26,120 +50,231 @@ public class PawnSkill : ActiveSkill
     [Header("Timing")]
     [SerializeField] private float dissolveTime = 0.25f;
 
+    private const string WeaponVisualName = "CloneWeaponVisual";
+
     private readonly List<PawnCloneHealth> activeClones = new();
     private PawnClonePool pool;
-    private void OnDestroy()
-    {
-        if (pool != null)
-        {
-            ClearExistingClones();
-        }
-    }
+    private ChessPieceFPSController fps;
+
+    private bool hasArena;
+    private Bounds arena;
+
+    // Weapon look-alike for the clones (stripped copy of the pawn's weapon).
+    private GameObject weaponTemplate;
+    private GameObject weaponTemplateSource;
+    private Vector3 weaponLocalPos;
+    private Quaternion weaponLocalRot;
+
     private void Awake()
     {
         pool = new PawnClonePool(pawnClonePrefab, transform);
-        blockMask = SkillBlockMask.None;
+        if (revealMaterial != null)
+            RevealSystem.XRayMaterial = revealMaterial;
     }
 
-    // Active duration = maximum lifetime of clones
-    protected override float GetActiveDuration(in SkillContext ctx)
+    private void OnDestroy()
     {
-        // ActiveSkill stays active while clones exist
-        return cloneLifetime;
+        ClearExistingClones();
+        if (weaponTemplate != null)
+            Destroy(weaponTemplate);
     }
+
+    public override void Initialize(in SkillContext ctx)
+    {
+        base.Initialize(ctx);
+        fps = ctx.fps;
+    }
+
+    protected override float GetActiveDuration(in SkillContext ctx) => cloneLifetime;
 
     protected override void OnEnterActive(in SkillContext ctx)
     {
         ClearExistingClones();
+        hasArena = ArenaArea.TryGetBounds(out arena);
+        PrepareWeaponTemplate();
 
         for (int i = 0; i < cloneCount; i++)
-        {
             SpawnClone(ctx);
-        }
 
+        // The pawn is flung exactly like its clones (random direction), so it mixes in.
         if (ctx.fps != null)
-        {
-            Vector3 dir = Random.onUnitSphere;
-            dir.y = Mathf.Abs(dir.y);
-
-            Vector3 impulse = dir.normalized * scatterForce + Vector3.up * upwardForce;
-
-            ctx.fps.AddExternalImpulse(impulse);
-        }
+            ctx.fps.AddExternalImpulse(PickScatterVelocity(transform.position));
     }
 
     protected override void TickActive(in SkillContext ctx)
     {
-        // Remove destroyed clones from tracking
         activeClones.RemoveAll(c => c == null || !c.gameObject.activeInHierarchy);
+
+        // Every clone has been killed before its time ran out: the cooldown starts now.
+        bool anyAlive = false;
+        foreach (var c in activeClones)
+            if (!c.IsDying) { anyAlive = true; break; }
+
+        if (!anyAlive)
+            FinishActive();
     }
 
-    protected override void OnExitActive(in SkillContext ctx)
+    protected override void OnExitActive(in SkillContext ctx) => ClearExistingClones();
+
+    protected override void OnForceCancel(in SkillContext ctx) => ClearExistingClones();
+
+    // =========================
+    // SCATTER (random, but always landing inside the arena)
+    // =========================
+
+    /// <summary>Random upward-hemisphere throw whose landing point stays inside the arena.</summary>
+    private Vector3 PickScatterVelocity(Vector3 from)
     {
-        // Cleanup all remaining clones safely
-        ClearExistingClones();
+        Vector3 v = Vector3.zero;
+        for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
+        {
+            Vector3 dir = Random.onUnitSphere;
+            dir.y = Mathf.Abs(dir.y);
+            v = dir.normalized * scatterForce + Vector3.up * upwardForce;
+
+            if (!hasArena || ArenaArea.ContainsXZ(arena, ArenaArea.PredictLanding(from, v, PawnCloneHealth.ScatterGravity), arenaMargin))
+                return v;
+        }
+
+        // Near the edge and unlucky: throw towards the arena centre (same strength, shorter).
+        Vector3 toCenter = arena.center - from;
+        toCenter.y = 0f;
+        if (toCenter.sqrMagnitude < 1e-4f)
+            return Vector3.up * (scatterForce + upwardForce);
+        float flat = Mathf.Min(scatterForce, toCenter.magnitude * 0.5f);
+        return toCenter.normalized * flat + Vector3.up * (upwardForce + scatterForce * 0.5f);
     }
 
-    protected override void OnForceCancel(in SkillContext ctx)
+    private bool TryFindClonePosition(out Vector3 pos)
     {
-        // Force cleanup
-        ClearExistingClones();
-        base.OnForceCancel(ctx);
+        for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
+        {
+            Vector2 circle = Random.insideUnitCircle * spawnRadius;
+            Vector3 above = transform.position + transform.right * circle.x + transform.forward * circle.y + Vector3.up * 2f;
+
+            if (!Physics.Raycast(above, Vector3.down, out RaycastHit ground, 6f, groundMask, QueryTriggerInteraction.Ignore))
+                continue;
+
+            Vector3 candidate = ground.point + Vector3.up * (cloneRadius + 0.05f);
+            if (Physics.CheckSphere(candidate, cloneRadius, groundMask, QueryTriggerInteraction.Ignore))
+                continue;
+
+            pos = candidate;
+            return true;
+        }
+
+        pos = transform.position;
+        return false;
     }
 
     private void SpawnClone(SkillContext ctx)
     {
-        Vector3 pos = Vector3.zero;
-        bool validPos = false;
-
-        for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
-        {
-            Vector2 circle = Random.insideUnitCircle * spawnRadius;
-            Vector3 candidate =
-                transform.position +
-                transform.right * circle.x +
-                transform.forward * circle.y;
-
-            candidate.y = transform.position.y;
-
-            if (Physics.OverlapSphere(candidate, 0.3f).Length == 0)
-            {
-                pos = candidate;
-                validPos = true;
-                break;
-            }
-        }
-
-        if (!validPos)
-            pos = transform.position + Random.onUnitSphere * spawnRadius;
+        TryFindClonePosition(out Vector3 pos);
 
         PawnCloneHealth clone = pool.Get(pos, transform.rotation);
+        if (clone == null)
+            return;
 
-        Vector3 scatterDir = Random.onUnitSphere;
-        scatterDir.y = Mathf.Abs(scatterDir.y);
-        Vector3 initialVelocity = scatterDir.normalized * scatterForce + Vector3.up * upwardForce;
+        var cloneFps = clone.GetComponent<ChessPieceFPSController>();
+        if (cloneFps != null && ctx.fps != null)
+            cloneFps.SetTeam(ctx.fps.Team);
 
-        clone.Activate(
-            cloneLifetime,
-            dissolveTime,
-            destroyVFX,
-            pool,
-            initialVelocity
-        );
+        AttachWeaponVisual(clone);
 
+        clone.Activate(cloneLifetime, dissolveTime, destroyVFX, pool, PickScatterVelocity(pos), cloneHealth, OnCloneKilled);
         clone.gameObject.SetActive(true);
 
         if (spawnVFX)
-            Object.Instantiate(spawnVFX, pos, Quaternion.identity);
+            Instantiate(spawnVFX, pos, Quaternion.identity);
 
         activeClones.Add(clone);
+    }
+
+    // =========================
+    // REVEAL THE KILLER
+    // =========================
+    private void OnCloneKilled(PawnCloneHealth clone, DamageInfo info)
+    {
+        if (fps == null || info.source == null)
+            return;
+
+        ChessPieceFPSController killer = info.source.GetComponentInParent<ChessPieceFPSController>();
+        if (killer == null || killer == fps || killer.IsPawnClone || SkillTargeting.IsAlly(fps, killer))
+            return;
+
+        RevealSystem.Reveal(killer, fps.Team, revealSeconds);
+    }
+
+    // =========================
+    // WEAPON LOOK-ALIKE
+    // =========================
+    private GameObject FindOwnerWeapon()
+    {
+        if (fps == null) return null;
+        WeaponController w = fps.GetCurrentWeapon();
+        if (w == null) w = fps.GetComponentInChildren<WeaponController>();
+        return w != null ? w.gameObject : null;
+    }
+
+    /// <summary>Builds (once per weapon) an inactive, script-free, collider-free copy of the pawn's weapon.</summary>
+    private void PrepareWeaponTemplate()
+    {
+        GameObject source = FindOwnerWeapon();
+        if (source == weaponTemplateSource && (source == null || weaponTemplate != null))
+            return;
+
+        if (weaponTemplate != null)
+            Destroy(weaponTemplate);
+        weaponTemplate = null;
+        weaponTemplateSource = source;
+        if (source == null)
+            return;
+
+        // Copy under an INACTIVE parent: the copy's scripts never Awake.
+        var holder = new GameObject(WeaponVisualName + "Template");
+        holder.SetActive(false);
+        holder.transform.SetParent(transform, false);
+
+        GameObject copy = Instantiate(source, holder.transform);
+        copy.name = WeaponVisualName;
+        foreach (var mb in copy.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(mb);
+        foreach (var col in copy.GetComponentsInChildren<Collider>(true)) DestroyImmediate(col);
+        foreach (var rb in copy.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
+        foreach (var audio in copy.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(audio);
+
+        weaponTemplate = holder;
+        // Pose relative to the pawn's root, reused on every clone.
+        weaponLocalPos = transform.InverseTransformPoint(source.transform.position);
+        weaponLocalRot = Quaternion.Inverse(transform.rotation) * source.transform.rotation;
+    }
+
+    private void AttachWeaponVisual(PawnCloneHealth clone)
+    {
+        Transform old = clone.transform.Find(WeaponVisualName);
+        if (old != null)
+            Destroy(old.gameObject);
+
+        if (weaponTemplate == null || weaponTemplate.transform.childCount == 0)
+            return;
+
+        GameObject visual = Instantiate(weaponTemplate.transform.GetChild(0).gameObject, clone.transform);
+        visual.name = WeaponVisualName;
+        visual.transform.position = clone.transform.TransformPoint(weaponLocalPos);
+        visual.transform.rotation = clone.transform.rotation * weaponLocalRot;
+        visual.SetActive(true);
     }
 
     private void ClearExistingClones()
     {
         foreach (var clone in activeClones)
         {
-            if (clone)
+            if (clone == null) continue;
+
+            if (IsTearingDown)
+                Destroy(clone.gameObject); // the pool lives under this dying pawn: never re-parent into it
+            else if (clone.IsDying)
+                continue;                  // already dissolving: it returns to the pool by itself
+            else if (pool != null)
                 clone.ForceDespawn();
         }
         activeClones.Clear();

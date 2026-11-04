@@ -42,8 +42,11 @@ public class KingHealth : ChessPieceHealth
     // UNITY
     // =========================
 
-    void Start()
+    // Awake (not Start): the arena may call StartLastStand right after Instantiate,
+    // and a later Start() would wipe that Last Stand.
+    protected override void Awake()
     {
+        base.Awake();
         ResetKing();
     }
 
@@ -103,6 +106,7 @@ public class KingHealth : ChessPieceHealth
             if (currentStacks > 1)
             {
                 ConsumeStack();
+                NotifyAbsorbedHit(info, damage); // hit feedback even though a stack took it
                 return 0f;
             }
 
@@ -173,8 +177,9 @@ public class KingHealth : ChessPieceHealth
 
         if (survived)
         {
-            currentStacks = 1;
-            ResetHealth(healthPerStack * 0.5f);
+            // Back to the normal health pool (not a 50-HP max forever), at half health.
+            currentStacks = 0;
+            RestoreBaseMaxHealth(0.5f);
         }
         // else: chết bằng pipeline base
     }

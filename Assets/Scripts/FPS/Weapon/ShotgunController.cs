@@ -32,7 +32,7 @@ public class ShotgunController : GunController
         // -----------------------------
         // Resolve one-shot modifiers
         // -----------------------------
-        float finalDamage = damage;
+        float finalDamage = damage * ConsumeShotDamageMultiplier(); // one shot = all pellets
         float spreadAngle = currentSpreadAngle;
 
         if (hasOneShotModifier)

@@ -13,6 +13,8 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
 
     private float currentHealth;
     private bool isDead;
+    private float baseMaxHealth;
+    private IDamageModifier[] damageModifiers = System.Array.Empty<IDamageModifier>();
 
     public float MaxHealth => maxHealth;
     public float CurrentHealth => currentHealth;
@@ -44,11 +46,16 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
     // UNITY
     // =========================
 
-    void Awake()
+    protected virtual void Awake()
     {
+        baseMaxHealth = maxHealth;
         currentHealth = maxHealth;
+        damageModifiers = GetComponents<IDamageModifier>(); // cached: no allocation per hit
         isDead = false;
     }
+
+    /// <summary>Max health from the prefab (ResetHealth may change maxHealth temporarily).</summary>
+    public float BaseMaxHealth => baseMaxHealth;
 
     void Update()
     {
@@ -84,6 +91,12 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
         if (!IsAlive) return;
         if (info.amount <= 0f) return;
 
+        // Damage modifiers on this piece (e.g. the Knight takes less damage while leaping).
+        for (int i = 0; i < damageModifiers.Length; i++)
+            if (damageModifiers[i] != null)
+                damageModifiers[i].ModifyDamage(ref info);
+        if (info.amount <= 0f) return;
+
         float finalDamage = ModifyIncomingDamage(info);
         if (finalDamage <= 0f) return;
 
@@ -97,6 +110,27 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
     protected virtual float ModifyIncomingDamage(DamageInfo info)
     {
         return info.amount;
+    }
+
+    /// <summary>
+    /// A hit fully absorbed by a mechanic (e.g. a King stack) still gives hit feedback
+    /// (UI flash, hit sound) without changing health.
+    /// </summary>
+    protected void NotifyAbsorbedHit(DamageInfo info, float absorbedAmount)
+    {
+        lastDamageTime = Time.time;
+        regenTime = 0f;
+        OnDamaged?.Invoke(info, absorbedAmount);
+        if (hitSound != null)
+            hitSound.Play();
+    }
+
+    /// <summary>Back to the prefab's max health, with current health at the given fraction of it.</summary>
+    public void RestoreBaseMaxHealth(float currentFraction)
+    {
+        maxHealth = baseMaxHealth;
+        currentHealth = Mathf.Clamp(baseMaxHealth * currentFraction, 1f, baseMaxHealth);
+        isDead = false;
     }
 
     private void CommitDamage(float damage)
