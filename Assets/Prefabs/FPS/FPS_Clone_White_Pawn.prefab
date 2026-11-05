@@ -61,6 +61,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -82,9 +84,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &8903031554754154760
 GameObject:
@@ -160,19 +164,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 0}
   moveSpeed: 5
-  jumpHeight: 1.5
-  gravity: -9.81
+  jumpHeight: 1.9
+  gravity: -19.81
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  firePoint: {fileID: 0}
+  recoilSequenceInputEpsilon: 0.01
+  attackPoint: {fileID: 0}
   weaponHolder: {fileID: 0}
   weaponBlockedPosition: {fileID: 0}
+  weaponHolderOffset: {x: 0, y: 0, z: 0}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
   weaponAdjustSpeed: 10
-  weaponBlockCheckDistance: 0.6
+  boundSkills: []
 --- !u!114 &4726028686602633508
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -15,7 +15,7 @@ public struct ChessPieceSpawn
 {
     public GameObject prefab;
     public int count;
-    [Tooltip("This piece's own weapon (e.g. the king's sword). Empty: the player's piece gets the arena's playerWeaponPrefab, AI pieces get none.")]
+    [Tooltip("This piece's own weapon (e.g. the king's sword). Empty: the piece gets no weapon.")]
     public GameObject weapon;
 }
 
@@ -71,9 +71,6 @@ public class ArenaController : MonoBehaviour
     public RectTransform pointBottomScope;
     public RectTransform pointLeftScope;
     public RectTransform pointRightScope;
-
-    [Header("Weapon")]
-    [SerializeField] private GameObject playerWeaponPrefab;
 
     // =========================
     // RUNTIME TRACKING
@@ -285,7 +282,7 @@ public class ArenaController : MonoBehaviour
 
             playerSpawned = true;
 
-            GameObject weapon = whitePrefab.weapon != null ? whitePrefab.weapon : playerWeaponPrefab;
+            GameObject weapon = whitePrefab.weapon;
             if (weapon != null)
             {
                 playerPiece.BindWeapon(weapon, pointCenterScope, pointTopScope, pointBottomScope, pointLeftScope, pointRightScope);

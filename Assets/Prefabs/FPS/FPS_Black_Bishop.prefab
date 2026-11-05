@@ -109,19 +109,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 0}
   moveSpeed: 5
-  jumpHeight: 1.5
-  gravity: -9.81
+  jumpHeight: 1.9
+  gravity: -19.81
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  firePoint: {fileID: 0}
+  recoilSequenceInputEpsilon: 0.01
+  attackPoint: {fileID: 0}
   weaponHolder: {fileID: 0}
   weaponBlockedPosition: {fileID: 0}
+  weaponHolderOffset: {x: 0, y: 0, z: 0}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
   weaponAdjustSpeed: 10
-  weaponBlockCheckDistance: 0.6
   boundSkills: []
 --- !u!114 &4884679286592791552
 MonoBehaviour:
@@ -135,7 +136,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96a16861e869de64a8610e41259e0cab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  damageEffect: {fileID: 0}
+  hitSound: {fileID: 0}
+  deathSound: {fileID: 0}
   maxHealth: 100
+  activeRegen:
+    regenPerSecond: 5
+    regenDelayAfterHit: 10
+    regenCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
 --- !u!114 &-8885863947530646813
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -202,9 +233,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   prefab: {fileID: 8158801362819832218, guid: dd0f21ccb3dd306418a343810d97585a, type: 3}
   poolSize: 20
-  trailMaterial: {fileID: 2100000, guid: 8f0172e64ad18ad999ad47913faedd7c, type: 2}
-  startWidth: 0.05
-  endWidth: 0.05
 --- !u!1 &8733855413759752214
 GameObject:
   m_ObjectHideFlags: 0
@@ -266,6 +294,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -287,7 +317,9 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}

@@ -197,19 +197,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 5842467594253573517}
   moveSpeed: 5
-  jumpHeight: 1.5
-  gravity: -9.81
+  jumpHeight: 1.9
+  gravity: -19.81
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  firePoint: {fileID: 0}
+  recoilSequenceInputEpsilon: 0.01
+  attackPoint: {fileID: 0}
   weaponHolder: {fileID: 0}
   weaponBlockedPosition: {fileID: 0}
+  weaponHolderOffset: {x: 0, y: 0, z: 0}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
-  weaponAdjustSpeed: 10
-  weaponBlockCheckDistance: 0.6
+  weaponAdjustSpeed: 5
   boundSkills: []
 --- !u!114 &1106313762543319196
 MonoBehaviour:
@@ -223,7 +224,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96a16861e869de64a8610e41259e0cab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  damageEffect: {fileID: 0}
+  hitSound: {fileID: 0}
+  deathSound: {fileID: 0}
   maxHealth: 100
+  activeRegen:
+    regenPerSecond: 5
+    regenDelayAfterHit: 10
+    regenCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
 --- !u!114 &4290090825889262790
 MonoBehaviour:
   m_ObjectHideFlags: 0

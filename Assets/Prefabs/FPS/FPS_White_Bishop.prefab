@@ -162,7 +162,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4209290459568174297}
   m_Layer: 6
-  m_Name: FirePoint
+  m_Name: AttackPoint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -308,19 +308,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 6035714630828728707}
   moveSpeed: 5
-  jumpHeight: 1.5
-  gravity: -9.81
+  jumpHeight: 1.9
+  gravity: -19.81
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  firePoint: {fileID: 4209290459568174297}
+  recoilSequenceInputEpsilon: 0.15
+  attackPoint: {fileID: 4209290459568174297}
   weaponHolder: {fileID: 2713561733050654715}
   weaponBlockedPosition: {fileID: 1717628533332216466}
-  weaponHolderOffset: {x: 0.28, y: -0.2375, z: -0.1689}
+  weaponHolderOffset: {x: 0.31, y: -0.2886, z: -0.1}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
-  weaponAdjustSpeed: 10
+  weaponAdjustSpeed: 15
   boundSkills: []
 --- !u!114 &4294996922908958767
 MonoBehaviour:
@@ -413,7 +414,7 @@ Transform:
   m_GameObject: {fileID: 5949870921971882812}
   serializedVersion: 2
   m_LocalRotation: {x: 0.36632985, y: -0.53997797, z: 0.28109473, w: 0.70371306}
-  m_LocalPosition: {x: 0.3, y: 1.6, z: 0.35}
+  m_LocalPosition: {x: 0.3, y: 1.55, z: 0.46}
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
