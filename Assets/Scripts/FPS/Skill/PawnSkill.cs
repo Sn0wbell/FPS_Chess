@@ -161,16 +161,28 @@ public class PawnSkill : ActiveSkill
             if (!Physics.Raycast(above, Vector3.down, out RaycastHit ground, 6f, groundMask, QueryTriggerInteraction.Ignore))
                 continue;
 
-            Vector3 candidate = ground.point + Vector3.up * (cloneRadius + 0.05f);
-            if (Physics.CheckSphere(candidate, cloneRadius, groundMask, QueryTriggerInteraction.Ignore))
+            // The clone's real body (its CharacterController), lifted off the ground along the surface normal
+            // so a slope does not count as "blocked"; only the ground / obstacles block it.
+            CloneBody(out float radius, out float height);
+            Vector3 bottom = ground.point + ground.normal * (radius + 0.05f);
+            Vector3 top = bottom + Vector3.up * Mathf.Max(0f, height - 2f * radius);
+            if (Physics.CheckCapsule(bottom, top, radius * 0.95f, groundMask, QueryTriggerInteraction.Ignore))
                 continue;
 
-            pos = candidate;
+            pos = bottom - Vector3.up * radius; // the clone's feet
             return true;
         }
 
         pos = transform.position;
         return false;
+    }
+
+    /// <summary>Size of the clone's body (its prefab's CharacterController); cloneRadius when it has none.</summary>
+    private void CloneBody(out float radius, out float height)
+    {
+        CharacterController body = pawnClonePrefab != null ? pawnClonePrefab.GetComponent<CharacterController>() : null;
+        radius = body != null ? body.radius : cloneRadius;
+        height = body != null ? Mathf.Max(body.height, 2f * radius) : 2f * cloneRadius;
     }
 
     private void SpawnClone(SkillContext ctx)

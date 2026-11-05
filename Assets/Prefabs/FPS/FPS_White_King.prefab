@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5888588558332182920}
-  - component: {fileID: 8170666736111601726}
   - component: {fileID: 5986106490975373469}
   - component: {fileID: 1718869360594994670}
   - component: {fileID: 2660860729686349866}
@@ -38,49 +37,6 @@ Transform:
   - {fileID: 2391859849279350704}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &8170666736111601726
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 42047500212750543}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 96a16861e869de64a8610e41259e0cab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  damageEffect: {fileID: 0}
-  hitSound: {fileID: 0}
-  deathSound: {fileID: 0}
-  maxHealth: 100
-  activeRegen:
-    regenPerSecond: 5
-    regenDelayAfterHit: 10
-    regenCurve:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
 --- !u!143 &5986106490975373469
 CharacterController:
   m_ObjectHideFlags: 0
@@ -115,7 +71,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 42047500212750543}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
+  m_Script: {fileID: 11500000, guid: f587df51559dc094a8c22e7b156ea7f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 3444634153833480865}

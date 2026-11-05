@@ -39,7 +39,7 @@ public class MeleeWeaponController : WeaponController
                 dmg.TakeDamage(new DamageInfo
                 {
                     amount = damage,
-                    hitPoint = col.ClosestPoint(origin),
+                    hitPoint = SkillTargeting.ClosestPointOnBody(col, origin),
                     hitDirection = toTarget,
                     source = gameObject,
                     type = DamageType.Melee

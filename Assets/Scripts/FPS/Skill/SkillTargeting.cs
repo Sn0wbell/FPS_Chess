@@ -104,6 +104,27 @@ public static class SkillTargeting
     }
 
     /// <summary>
+    /// Closest point of a piece's body to <paramref name="point"/>. Unity's Collider.ClosestPoint does not
+    /// support CharacterController, so its capsule is computed here; other colliders use ClosestPoint.
+    /// </summary>
+    public static Vector3 ClosestPointOnBody(Collider body, Vector3 point)
+    {
+        if (body == null)
+            return point;
+        if (!(body is CharacterController cc))
+            return body.ClosestPoint(point);
+
+        Vector3 center = cc.bounds.center;
+        float half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+        Vector3 a = center + Vector3.up * half, b = center - Vector3.up * half;
+        Vector3 ab = a - b;
+        float t = ab.sqrMagnitude > 1e-8f ? Mathf.Clamp01(Vector3.Dot(point - b, ab) / ab.sqrMagnitude) : 0f;
+        Vector3 axis = b + ab * t;
+        Vector3 offset = point - axis;
+        return offset.magnitude <= cc.radius ? point : axis + offset.normalized * cc.radius;
+    }
+
+    /// <summary>
     /// Moves a controller by <paramref name="move"/>, sliding along the ground / walls it runs into
     /// (speed x cos of the hit angle). Hitting something at <paramref name="headOnAngle"/> or more
     /// (90 = straight into it) does not move it and returns false.

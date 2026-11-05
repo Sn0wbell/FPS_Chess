@@ -236,34 +236,21 @@ public class ArenaController : MonoBehaviour
 
         Vector3 min = arenaBounds.min;
         Vector3 max = arenaBounds.max;
+        Vector3 mid = arenaBounds.center;
+        // Each side spawns in its own quarter of the arena, spawnSpacing metres in from the edges.
+        float margin = Mathf.Max(0f, spawnSpacing);
 
         // White: góc (-X, -Z)
-        Bounds whiteBounds = new Bounds(
-            new Vector3(
-                min.x + arenaBounds.size.x * spawnSpacing,
-                arenaBounds.center.y,
-                min.z + arenaBounds.size.z * spawnSpacing
-            ),
-            new Vector3(
-                arenaBounds.size.x * 0.5f,
-                arenaBounds.size.y,
-                arenaBounds.size.z * 0.5f
-            )
-        );
+        Bounds whiteBounds = new Bounds();
+        whiteBounds.SetMinMax(
+            new Vector3(min.x + margin, min.y, min.z + margin),
+            new Vector3(mid.x - margin, max.y, mid.z - margin));
 
         // Black: góc (+X, +Z)
-        Bounds blackBounds = new Bounds(
-            new Vector3(
-                max.x - arenaBounds.size.x * spawnSpacing,
-                arenaBounds.center.y,
-                max.z - arenaBounds.size.z * spawnSpacing
-            ),
-            new Vector3(
-                arenaBounds.size.x * 0.5f,
-                arenaBounds.size.y,
-                arenaBounds.size.z * 0.5f
-            )
-        );
+        Bounds blackBounds = new Bounds();
+        blackBounds.SetMinMax(
+            new Vector3(mid.x + margin, min.y, mid.z + margin),
+            new Vector3(max.x - margin, max.y, max.z - margin));
 
         // ---------- White (Player) ----------
         if (whitePrefab.prefab)
@@ -337,6 +324,22 @@ public class ArenaController : MonoBehaviour
 
     private Vector3 FindValidSpawnPositionInBounds(Bounds bounds)
     {
+        if (TryFindGround(bounds, out Vector3 spawnPos))
+            return spawnPos;
+
+        // No ground in this side's quarter: try anywhere in the arena before giving up.
+        if (arenaBoundary && TryFindGround(GetBoundaryBounds(), out Vector3 anywhere))
+        {
+            Debug.LogWarning("[ArenaController] No free ground in the spawn area; spawned elsewhere in the arena.");
+            return anywhere;
+        }
+
+        Debug.LogError("[ArenaController] No ground found inside the arena boundary: check arenaBoundary's position and size.");
+        return bounds.center + Vector3.up * 2f;
+    }
+
+    private bool TryFindGround(Bounds bounds, out Vector3 spawnPos)
+    {
         for (int i = 0; i < maxSpawnAttempts; i++)
         {
             float x = UnityEngine.Random.Range(bounds.min.x, bounds.max.x);
@@ -356,7 +359,7 @@ public class ArenaController : MonoBehaviour
                 continue;
             }
 
-            Vector3 spawnPos = hit.point + Vector3.up * 1.2f;
+            spawnPos = hit.point + Vector3.up * 1.2f;
 
             if (Physics.CheckSphere(
                     spawnPos,
@@ -367,13 +370,12 @@ public class ArenaController : MonoBehaviour
                 continue;
             }
 
-            return spawnPos;
+            return true;
         }
 
-        Debug.LogWarning("[ArenaController] Spawn fallback used");
-        return bounds.center + Vector3.up * 2f;
+        spawnPos = default;
+        return false;
     }
-
 
     // =========================
     // CAMERA

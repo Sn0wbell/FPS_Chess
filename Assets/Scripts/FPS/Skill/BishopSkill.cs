@@ -371,7 +371,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             Vector3 n = surface.normal;
             bool hookedOne = goalSurface != null && surface.collider == goalSurface;
             // The hooked surface right ahead, next to the hook point (the gap left counts): arrived.
-            if (hookedOne && Vector3.Distance(cc.ClosestPoint(goal), goal) <= surface.distance + 0.3f)
+            if (hookedOne && Vector3.Distance(SkillTargeting.ClosestPointOnBody(cc, goal), goal) <= surface.distance + 0.3f)
             {
                 arrived = true; // reached the hook point
                 return true;
@@ -412,7 +412,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         if (hookedEnemyFps == null || !SkillTargeting.IsAlive(hookedEnemyFps))
             return false;
         Collider c = hookedEnemyController != null ? hookedEnemyController : hookedEnemyFps.GetComponent<Collider>();
-        Vector3 closest = c != null ? c.ClosestPoint(targetPos) : hookedEnemyFps.transform.position;
+        Vector3 closest = c != null ? SkillTargeting.ClosestPointOnBody(c, targetPos) : hookedEnemyFps.transform.position;
         return Vector3.Distance(closest, targetPos) <= impactRadius;
     }
 
@@ -559,7 +559,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             if (impact <= 0f)
                 continue; // not in front of the bishop: not hit
 
-            Damage(otherFps, col.ClosestPoint(transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
+            Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
 
             // Ngắt riêng các skill đang trực tiếp điều khiển chuyển động.
             InterruptMovementSkills(otherFps);
@@ -614,7 +614,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             float strength = impactImpulseForce * (1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, landingRadius)));
             otherFps.AddExternalImpulse(flat * strength + Vector3.up * (bounceFactor * strength));
 
-            Damage(otherFps, col.ClosestPoint(transform.position), Vector3.down);
+            Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), Vector3.down);
         }
     }
 

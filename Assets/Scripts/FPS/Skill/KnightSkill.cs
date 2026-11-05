@@ -21,7 +21,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     [SerializeField] private float leapDistance = 8f;
     [SerializeField] private float leapHeight = 3.5f;
     [SerializeField] private float leapDuration = 0.6f;
-    [Tooltip("How far along the arc (in leapDuration units) a landing surface is searched for in advance. Beyond it the knight keeps following the arc until it touches ground.")]
+    [Tooltip("How far along the arc (in leapDuration units) a landing surface is searched for in advance. Beyond it the knight keeps falling under normal gravity until it touches ground.")]
     [SerializeField] private float maxArcParameter = 2.5f;
 
     [Header("Impact")]
@@ -56,6 +56,8 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     private bool predictedEndIsWall; // ...and it is an obstacle, not ground
     private float elapsed;
     private bool leapActive;
+    private bool freeFalling;      // past the arc (no ground found on it): normal gravity until it lands
+    private Vector3 fallVelocity;
 
     private bool landingBonusAvailable;
 
@@ -95,9 +97,17 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         return pos;
     }
 
+    /// <summary>Velocity along the arc at u (per second).</summary>
+    private Vector3 ArcVelocity(float u)
+    {
+        float t = Mathf.Max(0.01f, leapDuration);
+        return leapForward * (leapDistance / t) + Vector3.up * (4f * leapHeight * (1f - 2f * u) / t);
+    }
+
     /// <summary>
     /// Walks the arc until it meets a solid surface (bounded search up to maxArcParameter).
-    /// Nothing found: no predicted end, the leap follows the arc until it touches ground.
+    /// Nothing found: no predicted end, the leap follows the arc until it touches ground
+    /// (past maxArcParameter it keeps falling under normal gravity until it lands).
     /// </summary>
     private void ComputeLeapEnd()
     {
@@ -147,6 +157,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         hitPieces.Clear();
         damagedPieces.Clear();
         elapsed = 0f;
+        freeFalling = false;
 
         Transform t = ctx.transform != null ? ctx.transform : transform;
         leapStart = t.position;
@@ -170,9 +181,25 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             return;
 
         elapsed += ctx.deltaTime;
-        float u = Mathf.Min(elapsed / Mathf.Max(0.01f, leapDuration), leapEndU);
+        float u = Mathf.Min(elapsed / Mathf.Max(0.01f, leapDuration), hasPredictedEnd ? leapEndU : maxArcParameter);
 
-        Vector3 target = ArcPoint(u);
+        Vector3 target;
+        if (!hasPredictedEnd && u >= maxArcParameter)
+        {
+            // Past the arc: the leap goes on as a normal fall (same gravity as a knock-back), keeping its momentum.
+            if (!freeFalling)
+            {
+                freeFalling = true;
+                fallVelocity = ArcVelocity(maxArcParameter);
+            }
+            fallVelocity.y += ChessPieceFPSController.ScatterGravity * ctx.deltaTime;
+            target = transform.position + fallVelocity * ctx.deltaTime;
+        }
+        else
+        {
+            target = ArcPoint(u);
+        }
+
         Vector3 delta = target - transform.position;
 
         int subSteps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / 0.1f));
@@ -405,7 +432,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             SkillTargeting.TryDealDamage(fps, otherFps.GetComponent<IDamageable>(), new DamageInfo
             {
                 amount = impactDamage,
-                hitPoint = hits[i].ClosestPoint(transform.position),
+                hitPoint = SkillTargeting.ClosestPointOnBody(hits[i], transform.position),
                 hitDirection = leapForward,
                 source = gameObject,
                 type = DamageType.Melee
@@ -444,7 +471,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             SkillTargeting.TryDealDamage(fps, otherFps.GetComponent<IDamageable>(), new DamageInfo
             {
                 amount = impactDamage,
-                hitPoint = col.ClosestPoint(transform.position),
+                hitPoint = SkillTargeting.ClosestPointOnBody(col, transform.position),
                 hitDirection = away,
                 source = gameObject,
                 type = DamageType.Melee

@@ -46,7 +46,13 @@ public sealed class BoardHighlightSystem : MonoBehaviour
 
     [Header("Layering")]
     [Tooltip("Vertical step between highlight layers so overlapping tiles never z-fight.")]
-    [SerializeField] private float layerHeight = 0.002f;
+    [SerializeField] private float layerHeight = 0.0005f;
+
+    [Header("Board Surface")]
+    [Tooltip("Layers of the board's collider (the layer the mouse picks squares on). Highlights lie right on its top.")]
+    [SerializeField] private LayerMask boardSurfaceMask = 1 << 3;
+    [Tooltip("Height of the lowest highlight above the board's surface (fine-tune here if the collider top is not the visible board).")]
+    [SerializeField] private float surfaceLift = 0.0005f;
 
     [Header("Pulse (check, danger, Last Stand)")]
     [SerializeField] private float pulseSpeed = 4f;
@@ -77,6 +83,10 @@ public sealed class BoardHighlightSystem : MonoBehaviour
 
     private Vector3 tileBaseScale = Vector3.one;
     private bool isInitialized;
+
+    private bool surfaceSearched;
+    private bool hasSurface;
+    private float surfaceY;
 
     // ======================================================
     // UNITY
@@ -357,12 +367,40 @@ public sealed class BoardHighlightSystem : MonoBehaviour
         tile.Deactivate();
 
         Vector3 pos = grid.BoardToWorld(file, rank);
+        if (TryGetBoardSurface(out float boardY))
+            pos.y = boardY + surfaceLift;
         pos.y += LayerOf(type) * layerHeight;
 
         tile.transform.localScale = tileBaseScale;
         tile.Activate(pos, mat, type);
 
         return tile;
+    }
+
+    /// <summary>
+    /// Height of the board's top surface, found once by a ray down onto the board's collider.
+    /// Not found: the highlights keep the grid's height.
+    /// </summary>
+    private bool TryGetBoardSurface(out float y)
+    {
+        if (!surfaceSearched)
+        {
+            surfaceSearched = true;
+            Vector3 middle = (grid.BoardToWorld(3, 3) + grid.BoardToWorld(4, 4)) * 0.5f; // between the four centre squares
+            float reach = grid.cellSize * 8f;
+            if (Physics.Raycast(middle + Vector3.up * reach, Vector3.down, out RaycastHit hit, reach * 2f, boardSurfaceMask, QueryTriggerInteraction.Ignore))
+            {
+                hasSurface = true;
+                surfaceY = hit.point.y;
+            }
+            else
+            {
+                Debug.LogWarning("BoardHighlightSystem: board surface not found (check Board Surface Mask); highlights use the grid height.", this);
+            }
+        }
+
+        y = surfaceY;
+        return hasSurface;
     }
 
     private void SpawnPersistent(int file, int rank, HighlightType type)

@@ -38,8 +38,10 @@ public class QueenSkill : ActiveSkill
     public float redZoneRadius = 3f;
     [Tooltip("Only enemies within this distance of the queen are targeted.")]
     public float targetRange = 40f;
-    [Tooltip("Grenades fall from this high above the target: a zone lands on the first surface below (ground, higher terrain, a rook wall).")]
-    public float grenadeDropHeight = 30f;
+    [Tooltip("The landing spot is searched from this high above the target's feet: a zone lands on the first surface below (ground, a rook wall), not on tree tops / roofs higher up.")]
+    public float grenadeDropHeight = 3f;
+    [Tooltip("How far below the target's feet a zone can still land (lower ground around the target).")]
+    public float grenadeMaxDrop = 30f;
 
     // =========================
     // PUSH
@@ -414,7 +416,7 @@ public class QueenSkill : ActiveSkill
             // The grenade falls from above: the zone sits on the first surface below
             // (the ground under the target, higher terrain, or the top of a rook wall).
             Vector3 from = new Vector3(pos.x, pos.y + grenadeDropHeight, pos.z);
-            if (!Physics.Raycast(from, Vector3.down, out RaycastHit ground, grenadeDropHeight * 2f, obstacleLayer, QueryTriggerInteraction.Ignore))
+            if (!Physics.Raycast(from, Vector3.down, out RaycastHit ground, grenadeDropHeight + grenadeMaxDrop, obstacleLayer, QueryTriggerInteraction.Ignore))
                 return false;
             pos = ground.point;
 

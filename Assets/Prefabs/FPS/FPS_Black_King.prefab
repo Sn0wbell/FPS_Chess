@@ -101,7 +101,6 @@ GameObject:
   - component: {fileID: 3617142903990582488}
   - component: {fileID: 5472237353152024632}
   - component: {fileID: 4545267801384407223}
-  - component: {fileID: 1474024728918044612}
   - component: {fileID: 1764717412959684069}
   - component: {fileID: -3262385217670718246}
   m_Layer: 6
@@ -161,7 +160,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 8882335903305771343}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
+  m_Script: {fileID: 11500000, guid: f587df51559dc094a8c22e7b156ea7f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   cameraPoint: {fileID: 0}
@@ -181,49 +180,6 @@ MonoBehaviour:
     m_Bits: 65
   weaponAdjustSpeed: 10
   boundSkills: []
---- !u!114 &1474024728918044612
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8882335903305771343}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 96a16861e869de64a8610e41259e0cab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  damageEffect: {fileID: 0}
-  hitSound: {fileID: 0}
-  deathSound: {fileID: 0}
-  maxHealth: 100
-  activeRegen:
-    regenPerSecond: 5
-    regenDelayAfterHit: 10
-    regenCurve:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
 --- !u!114 &1764717412959684069
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -246,14 +202,14 @@ MonoBehaviour:
   moveMultiplier: 0.4
   jumpMultiplier: 0.25
   activeDuration: 4
-  pullZonePrefab: {fileID: 0}
-  gravityZonePrefab: {fileID: 0}
+  pullZonePrefab: {fileID: 3296097815093323866, guid: c96fb4f5debbe564a9f49b9da2e3d979, type: 3}
+  gravityZonePrefab: {fileID: 3296097815093323866, guid: 9122feebf424ff54b98fd2f16d28a0d1, type: 3}
   enemyLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 64
   obstacleLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 1
 --- !u!114 &-3262385217670718246
 MonoBehaviour:
   m_ObjectHideFlags: 0

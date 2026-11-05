@@ -100,8 +100,10 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         // No direction or no room to start: nothing happens and no cooldown is spent.
         // (An enemy wall ahead does not count: the charge rams it when it gets there.)
+        // Only the first step is checked: an obstacle further ahead just stops the dash there.
+        float firstStep = Mathf.Max(dashSpeed * ctx.deltaTime, 0.05f);
         if (dashDir.sqrMagnitude < 0.01f ||
-            (BlockedAhead(controller.transform.position, dashDir, segmentLength, out RaycastHit startBlocker) && !IsEnemyWall(startBlocker)))
+            (BlockedAhead(controller.transform.position, dashDir, firstStep, out RaycastHit startBlocker) && !IsEnemyWall(startBlocker)))
         {
             AbortActivation();
             return;
@@ -272,7 +274,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
             SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
             {
                 amount = impactDamage,
-                hitPoint = col.ClosestPoint(controller.transform.position),
+                hitPoint = SkillTargeting.ClosestPointOnBody(col, controller.transform.position),
                 hitDirection = dashDir,
                 source = gameObject,
                 type = DamageType.Melee
@@ -293,7 +295,10 @@ public class RookSkill : ActiveSkill, IMovementOverride
             return;
 
         Vector3 center = currentSegmentHeadPos + dashDir * (segmentLength * 0.5f);
-        SpawnSegmentAt(center);
+        // Every wall sits a body-radius behind the rook, so it never spawns inside him
+        // (the walls stay end to end; the whole line is just shifted back).
+        float clearance = controller != null ? controller.radius + controller.skinWidth : 0f;
+        SpawnSegmentAt(center - dashDir * clearance);
 
         currentSegmentHeadPos = center + dashDir * ((segmentLength * 0.5f) + segmentSpacing);
         distanceSinceLastSegment = 0f;
@@ -305,6 +310,11 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         float deltaH = controller.transform.position.y - centerPos.y;
         centerPos += Vector3.up * deltaH;
+
+        // On a slope the ground under the wall's middle can be higher than the rook (dashing downhill):
+        // stand the wall on it, so it does not sink into the slope.
+        if (TryGroundUnder(centerPos, out float groundY) && groundY > centerPos.y)
+            centerPos.y = groundY;
 
         Collider[] hits = Physics.OverlapSphere(centerPos, obstacleCheckRadius, obstacleMask, QueryTriggerInteraction.Ignore);
         int count = hits.Length;
@@ -467,6 +477,35 @@ public class RookSkill : ActiveSkill, IMovementOverride
         {
             controller.Move(Vector3.down * ground.distance);
         }
+    }
+
+    /// <summary>
+    /// The walkable ground under this point, close to the rook's height
+    /// (walls and steep faces are skipped; of several surfaces, e.g. a tree top above, the one nearest in height wins).
+    /// </summary>
+    private bool TryGroundUnder(Vector3 point, out float groundY)
+    {
+        groundY = point.y;
+        float reach = segmentLength;
+        RaycastHit[] hits = Physics.RaycastAll(point + Vector3.up * reach, Vector3.down, reach * 2f, obstacleMask, QueryTriggerInteraction.Ignore);
+        float slopeLimit = controller != null ? controller.slopeLimit : 45f;
+        bool found = false;
+        float best = float.MaxValue;
+        foreach (var h in hits)
+        {
+            if (h.collider == null || h.collider.GetComponentInParent<WallSegment>() != null)
+                continue;
+            if (Vector3.Angle(h.normal, Vector3.up) > slopeLimit)
+                continue;
+            float gap = Mathf.Abs(h.point.y - point.y);
+            if (gap < best)
+            {
+                best = gap;
+                groundY = h.point.y;
+                found = true;
+            }
+        }
+        return found;
     }
 
     // =========================

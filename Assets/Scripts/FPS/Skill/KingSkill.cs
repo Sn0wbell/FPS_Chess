@@ -38,6 +38,8 @@ public class KingSkill : ActiveSkill
     [SerializeField] private float collisionBounce = 0.2f;
     [Tooltip("Rook walls in the pull zone get the momentum of a piece pulled at this speed (fading with distance).")]
     [SerializeField] private float wallPullForce = 10f;
+    [Tooltip("Highest point of a pulled piece's arc above the straight line (lower for short pulls). Not tied to the zone's cage height.")]
+    [SerializeField] private float pullArcHeight = 16f;
 
     // =========================
     // GRAVITY DEBUFF
@@ -95,8 +97,8 @@ public class KingSkill : ActiveSkill
     // =========================
     // AI Awareness
     // =========================
-    public bool IsActivePullZone => pullZoneInstance != null;
-    public bool IsActiveGravityZone => gravityZoneInstance != null;
+    public bool IsActivePullZone => pullZoneInstance != null && pullZoneInstance.gameObject.activeInHierarchy;
+    public bool IsActiveGravityZone => gravityZoneInstance != null && gravityZoneInstance.gameObject.activeInHierarchy;
     public float PullZoneRadius => pullRadius;
     public float GravityZoneRadius => gravityRadius;
     public Vector3 PullZoneCenter => transform.position;
@@ -216,8 +218,6 @@ public class KingSkill : ActiveSkill
             ExecutePull();
     }
 
-    private float CageHalfHeight => pullZonePrefab != null ? pullZonePrefab.CageHeight * 0.5f : 2f;
-
     /// <summary>
     /// Arc from start to end with one normalized parameter u in [0,1] (bounded: 1/PathStep points).
     /// Stops early in front of an obstacle. Returns null when there is nothing to do.
@@ -229,7 +229,7 @@ public class KingSkill : ActiveSkill
         if (horizontal < 0.05f)
             return null;
 
-        float height = Mathf.Min(CageHalfHeight, horizontal);
+        float height = Mathf.Min(pullArcHeight, horizontal);
 
         var path = new List<Vector3> { start };
         Vector3 prev = start;
@@ -258,9 +258,16 @@ public class KingSkill : ActiveSkill
         pullExecuted = true;
 
         Vector3 center = transform.position;
-        float half = CageHalfHeight;
-        // Exactly the drawn zone. Pieces (enemy layer) and rook walls (their collider sits on the Default layer).
-        Collider[] hits = Physics.OverlapCapsule(center - Vector3.up * half, center + Vector3.up * half,
+        // The drawn radius, at EVERY height (the cage only marks where the zone meets the ground):
+        // the whole height of the arena, or far up and down without one.
+        float below = 1000f, above = 1000f;
+        if (ArenaController.Current != null && ArenaController.Current.TryGetBounds(out Bounds arena))
+        {
+            below = Mathf.Max(0f, center.y - arena.min.y);
+            above = Mathf.Max(0f, arena.max.y - center.y);
+        }
+        // Pieces (enemy layer) and rook walls (their collider sits on the Default layer).
+        Collider[] hits = Physics.OverlapCapsule(center - Vector3.up * below, center + Vector3.up * above,
             pullRadius, enemyLayer | obstacleLayer, QueryTriggerInteraction.Ignore);
         int count = hits.Length;
         var walls = new HashSet<WallSegment>();
