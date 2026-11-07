@@ -43,7 +43,10 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     [SerializeField] private float impactRadius = 1f;
     [Tooltip("Damage of a hit: on the way, when a pulled piece arrives and by the landing blast (each piece takes it once per use).")]
     [SerializeField] private float impactDamage = 25f;
-    [SerializeField] private float impactImpulseForce = 12f;
+    [SerializeField] private float impactImpulseForce = 8f;
+    [Tooltip("When a pulled piece reaches the bishop, the bishop takes this share of the sideways bounce (the piece takes all of it).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float arrivalSelfKnockShare = 0.5f;
     [Tooltip("Upward bounce of a hit = this x the impact strength (glancing hits barely bounce).")]
     [SerializeField] private float bounceFactor = 0.35f;
 
@@ -567,7 +570,10 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
             // Bishop không tiếp tục kéo enemy sau khi impact đã xảy ra.
             FinishActive();
-            fps.AddExternalImpulse(myBounce);
+            // The bishop was being pulled along its rope: at most it slides off sideways, it never bounces up.
+            Vector3 slide = new Vector3(myBounce.x, 0f, myBounce.z);
+            if (slide.sqrMagnitude > 1e-4f)
+                fps.AddExternalImpulse(slide);
             return true;
         }
 
@@ -592,7 +598,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         ReleaseHookedEnemy();   // its movement and gravity are given back before the bounce
         FinishActive();
         piece.AddExternalImpulse(pieceBounce);
-        fps.AddExternalImpulse(myBounce);
+        // The bishop takes only part of the sideways bounce (e.g. the piece flies 8, the bishop 4).
+        fps.AddExternalImpulse(new Vector3(myBounce.x * arrivalSelfKnockShare, myBounce.y, myBounce.z * arrivalSelfKnockShare));
     }
 
     /// <summary>Self pull arrival: blast around the bishop, fading with distance; damage once per use.</summary>

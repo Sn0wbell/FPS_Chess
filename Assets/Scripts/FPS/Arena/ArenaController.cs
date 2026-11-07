@@ -39,6 +39,21 @@ public class ArenaController : MonoBehaviour
     public Transform arenaBoundary;
     [SerializeField] private float outOfBoundsKillDelay = 5f;
 
+    [Header("Death")]
+    [Tooltip("Every piece that dies breaks into fragments (like a captured chess piece).")]
+    [SerializeField] private PieceDeathEffect.Settings deathEffect = PieceDeathEffect.Default;
+    [Tooltip("Death cam: the player's camera moves this far behind the body...")]
+    [SerializeField] private float deathCamBack = 4f;
+    [Tooltip("...this high above it...")]
+    [SerializeField] private float deathCamUp = 2f;
+    [Tooltip("...in this many seconds, looking at it.")]
+    [SerializeField] private float deathCamMoveTime = 0.6f;
+
+    public PieceDeathEffect.Settings DeathEffect => deathEffect;
+    public float DeathCamBack => deathCamBack;
+    public float DeathCamUp => deathCamUp;
+    public float DeathCamMoveTime => deathCamMoveTime;
+
     [Header("FPS UI")]
     [SerializeField] private FPSCombatUIController fpsUI;
 
@@ -387,6 +402,7 @@ public class ArenaController : MonoBehaviour
         Camera mainCam = Camera.main;
         if (!mainCam) return;
 
+        DeathCamera.End(mainCam); // a death cam from the previous match
         mainCam.transform.SetParent(playerPiece.cameraPoint);
         mainCam.transform.localPosition = Vector3.zero;
         mainCam.transform.localRotation = Quaternion.identity;

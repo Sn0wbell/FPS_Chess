@@ -27,6 +27,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     public void SetPlayerControlled(bool value) => IsPlayerControlled = value;
 
     private bool isDeadRaw;
+    private bool bodyBroken; // died: the model broke into fragments, the body is hidden and no longer moves
     private PawnCloneHealth cloneHealth;
 
     /// <summary>Dead piece, or a pawn clone that is dissolving.</summary>
@@ -269,12 +270,52 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         foreach (var skill in boundSkills)
             if (skill != null)
                 skill.ForceCancel(); // releases every effect it put on other pieces
+
+        // The body breaks into fragments where it is and stops moving (same death for every piece).
+        Vector3 bodyCenter = controller != null ? controller.bounds.center : transform.position + Vector3.up;
+        PieceDeathEffect.Shatter(gameObject);
+        bodyBroken = true;
+        if (controller != null)
+            controller.enabled = false;
+
+        // The player watches it from a step back (death cam).
+        if (IsPlayerControlled)
+        {
+            ArenaController arena = ArenaController.Current;
+            Vector3 look = cameraPoint != null ? cameraPoint.forward : transform.forward;
+            DeathCamera.Begin(Camera.main, bodyCenter, look,
+                arena != null ? arena.DeathCamBack : 4f,
+                arena != null ? arena.DeathCamUp : 2f,
+                arena != null ? arena.DeathCamMoveTime : 0.6f);
+        }
+    }
+
+    /// <summary>Health came back after a death (ResetHealth / RestoreBaseMaxHealth): the body is whole again.</summary>
+    void HandleRevive()
+    {
+        isDeadRaw = false;
+        if (!bodyBroken)
+            return;
+
+        bodyBroken = false;
+        PieceDeathEffect.Restore(gameObject);
+        if (controller != null)
+            controller.enabled = true;
+
+        Camera cam = Camera.main;
+        if (IsPlayerControlled && cam != null && cameraPoint != null && cam.GetComponent<DeathCamera>() != null)
+        {
+            DeathCamera.End(cam);
+            cam.transform.SetParent(cameraPoint);
+            cam.transform.localPosition = Vector3.zero;
+            cam.transform.localRotation = Quaternion.identity;
+        }
     }
 
     void Update()
     {
         if (isDeadRaw && health != null && health.IsAlive)
-            isDeadRaw = false; // health was restored (ResetHealth / RestoreBaseMaxHealth)
+            HandleRevive(); // health was restored (ResetHealth / RestoreBaseMaxHealth)
 
         // Skills run even while the piece cannot be controlled (e.g. AI pieces), exactly once per frame.
         TickSkills();
@@ -283,25 +324,26 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         // only the player's piece adds keyboard input to it.
         // A skill blocking Movement blocks the INPUT only; gravity / knock-back keep running
         // (charging skills turn gravity off themselves).
-        // Dead pieces keep falling (no input) instead of freezing in mid-air.
+        // Dead pieces keep falling (no input) instead of freezing in mid-air, until their body breaks apart.
         // Pawn clones use exactly the same physics, so every skill effect treats them like real pieces.
-        if (!IsMovementSuppressed)
+        if (!IsMovementSuppressed && !bodyBroken)
             HandleMovement(readInput: !IsDead && canMove && IsPlayerControlled && !IsBlockedBySkill(SkillBlockMask.Movement));
 
         if (!canMove && !canAct)
             return;
 
-        if (canAct && IsPlayerControlled && !IsActionLocked)
+        // A dead piece takes no input at all (no skills, no looking around, no shooting).
+        if (canAct && IsPlayerControlled && !IsActionLocked && !IsDead)
         {
             HandleSkillInput();
         }
 
-        if (IsPlayerControlled)
+        if (IsPlayerControlled && !IsDead)
             HandleMouseLook();
         HandleWeaponBlock();
         UpdateWeaponSystemPosition();
 
-        if (canAct && IsPlayerControlled)
+        if (canAct && IsPlayerControlled && !IsDead)
         {
             // When attacking is blocked the gun still sees "trigger released / not aiming".
             HandleWeaponInput(attackBlocked: IsActionLocked || IsBlockedBySkill(SkillBlockMask.Attack));

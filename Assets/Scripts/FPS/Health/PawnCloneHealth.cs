@@ -69,6 +69,7 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         timer = 0f;
         dying = false;
 
+        PieceDeathEffect.Restore(gameObject); // a reused clone that broke apart last time
         gameObject.SetActive(true);
         DisableWeaponDamage();
 
@@ -85,13 +86,13 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         timer += Time.deltaTime;
         if (timer >= lifetime)
         {
-            Die(killedBy: null);
+            Die(killedBy: null, shatter: false); // its time is up: it just disappears (not a death)
             return;
         }
 
         // Out of the arena (past its edge or fallen below it): defeated, nobody to reveal.
         if (hasArena && (!ArenaController.ContainsXZ(arena, transform.position) || transform.position.y < arena.min.y))
-            Die(killedBy: null);
+            Die(killedBy: null, shatter: true);
     }
 
     public void TakeDamage(DamageInfo info)
@@ -103,16 +104,20 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         if (currentHealth <= 0f)
         {
             currentHealth = 0f;
-            Die(killedBy: info);
+            Die(killedBy: info, shatter: true);
         }
     }
 
-    private void Die(DamageInfo? killedBy)
+    private void Die(DamageInfo? killedBy, bool shatter)
     {
         if (dying)
             return;
 
         dying = true;
+
+        // Defeated: it breaks apart like a real piece.
+        if (shatter)
+            PieceDeathEffect.Shatter(gameObject);
 
         if (destroyVFX)
             Instantiate(destroyVFX, transform.position, Quaternion.identity);

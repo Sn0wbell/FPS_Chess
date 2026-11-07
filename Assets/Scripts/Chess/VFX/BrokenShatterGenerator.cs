@@ -26,6 +26,13 @@ public sealed class BrokenShatterGenerator : MonoBehaviour
     [Tooltip("Layer used for all shatter fragments")]
     [SerializeField] private LayerMask fragmentLayer;
 
+    [Header("Collision")]
+    [Tooltip("Give each fragment a box collider so it lands on the ground (FPS deaths). Off for the chess board.")]
+    public bool addColliders = false;
+
+    /// <summary>Puts the fragments on this layer (index).</summary>
+    public void SetFragmentLayer(int layer) => fragmentLayer = 1 << layer;
+
     private static Mesh cubeMesh;
     private CancellationTokenSource cts;
 
@@ -93,6 +100,9 @@ public sealed class BrokenShatterGenerator : MonoBehaviour
 
                 mr.sharedMaterial = mat;
                 materials.Add(mat);
+
+                if (addColliders)
+                    frag.AddComponent<BoxCollider>(); // the cube mesh is 1 x 1 x 1: the default box fits it
 
                 Rigidbody rb = frag.AddComponent<Rigidbody>();
                 rb.mass = 0.25f;
