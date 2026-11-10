@@ -306,10 +306,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  team: 0
   cameraPoint: {fileID: 6035714630828728707}
-  moveSpeed: 5
-  jumpHeight: 1.9
-  gravity: -19.81
+  moveSpeed: 8
+  jumpHeight: 2.5
+  gravity: -39.81
+  knockbackGroundFriction: 8
+  knockbackStopSpeed: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -337,10 +340,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cooldown: 5
   blockMask: 5
-  pullSpeed: 20
-  maxDuration: 15
+  pullSpeed: 50
+  maxDuration: 10
   maxRange: 150
-  ropeShootSpeed: 60
+  ropeShootSpeed: 100
   ropeStart: {fileID: 1888982132468192507}
   mapMask:
     serializedVersion: 2
@@ -355,10 +358,13 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1
   impactRadius: 1
-  impactDamageScale: 4
-  landingRadius: 1.5
-  landingDamageScale: 6
-  landingKnockUp: 6
+  impactDamage: 25
+  impactImpulseForce: 16.5
+  arrivalSelfKnockShare: 0.7
+  bounceFactor: 0.65
+  landingRadius: 3.5
+  headOnAngle: 80
+  wallToppleForce: 6
   anchorPool: {fileID: 2200018128488829727}
   trailPool: {fileID: 4019074596904551351}
 --- !u!114 &2200018128488829727
@@ -445,7 +451,7 @@ Transform:
   m_GameObject: {fileID: 7977161092070934974}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.18, y: 1.25, z: 0.18}
+  m_LocalPosition: {x: -0.15, y: 1.55, z: 0.165}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

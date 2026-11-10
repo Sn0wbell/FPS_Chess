@@ -195,10 +195,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  team: 0
   cameraPoint: {fileID: 5842467594253573517}
-  moveSpeed: 5
-  jumpHeight: 1.9
-  gravity: -19.81
+  moveSpeed: 8
+  jumpHeight: 2.5
+  gravity: -39.81
+  knockbackGroundFriction: 8
+  knockbackStopSpeed: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -274,10 +277,12 @@ MonoBehaviour:
   redZoneWarningTime: 3
   grenadeCount: 15
   redZoneRadius: 3
+  targetRange: 40
+  grenadeDropHeight: 3
+  grenadeMaxDrop: 30
   pushRadius: 12
-  maxPushHeight: 5.5
-  pushSpeedMultiplier: 0.95
-  pushDistanceMultiplier: 3
+  pushForce: 20
+  bounceFactor: 0.35
   pushSphereScaleSpeed: 35
   enemyLayer:
     serializedVersion: 2
@@ -312,6 +317,7 @@ MonoBehaviour:
   maxDamage: 50
   minDamage: 10
   heightRange: 4
+  explosionForce: 10
   redZonePrefab: {fileID: 2992163428134208009, guid: 3f878df8a026b8f4fbcef61dc9a0f9a6, type: 3}
   pushSpherePrefab: {fileID: 1315397177987353700, guid: 0a8c637db702e504699750f712a19d26, type: 3}
   sphereFadeStartNormalized: 0.55

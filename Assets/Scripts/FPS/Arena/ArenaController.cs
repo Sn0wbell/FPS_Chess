@@ -49,6 +49,18 @@ public class ArenaController : MonoBehaviour
     [Tooltip("...in this many seconds, looking at it.")]
     [SerializeField] private float deathCamMoveTime = 0.6f;
 
+    [Header("Match Result")]
+    [Tooltip("Seconds between the end of the match and the result on screen (time to watch the last piece break apart).")]
+    [SerializeField] private float resultDelay = 1f;
+    [Tooltip("The player's side in the chess move that started this duel (the chess <-> FPS bridge will set it).")]
+    [SerializeField] private ArenaRole playerRole = ArenaRole.Attacker;
+
+    [Tooltip("The result on the HUD (HUD/MatchResult).")]
+    [SerializeField] private ArenaResultOverlay resultOverlay;
+
+    public ArenaRole PlayerRole { get => playerRole; set => playerRole = value; }
+    public bool MatchEnded => matchEnded;
+
     public PieceDeathEffect.Settings DeathEffect => deathEffect;
     public float DeathCamBack => deathCamBack;
     public float DeathCamUp => deathCamUp;
@@ -218,10 +230,20 @@ public class ArenaController : MonoBehaviour
     public static bool ContainsXZ(Bounds b, Vector3 p, float margin = 0f) =>
         p.x >= b.min.x + margin && p.x <= b.max.x - margin && p.z >= b.min.z + margin && p.z <= b.max.z - margin;
 
-    /// <summary>Where a body thrown with this velocity lands back at its start height (gravity &lt; 0).</summary>
-    public static Vector3 PredictLanding(Vector3 start, Vector3 velocity, float gravity)
+    /// <summary>
+    /// Where a body thrown with this velocity comes down at its start height (gravity &lt; 0), bounces included:
+    /// each time it hits the ground at minBounceSpeed or more it bounces back up at bounciness x that speed.
+    /// </summary>
+    public static Vector3 PredictLanding(Vector3 start, Vector3 velocity, float gravity, float bounciness = 0f, float minBounceSpeed = float.PositiveInfinity)
     {
-        float flight = velocity.y > 0f ? 2f * velocity.y / Mathf.Max(0.01f, -gravity) : 0f;
+        float g = Mathf.Max(0.01f, -gravity);
+        float vy = Mathf.Max(0f, velocity.y);
+        float flight = 2f * vy / g;
+        for (int i = 0; i < 32 && bounciness > 0f && vy >= minBounceSpeed; i++)
+        {
+            vy *= bounciness;
+            flight += 2f * vy / g;
+        }
         return start + new Vector3(velocity.x, 0f, velocity.z) * flight;
     }
 
@@ -581,6 +603,21 @@ public class ArenaController : MonoBehaviour
     private void EndMatch(Team winner)
     {
         matchEnded = true;
+
+        // The match is over: the player's piece takes no more input.
+        bool playerWon = winner == Team.White; // the player always plays White in the arena
+        if (playerPiece)
+        {
+            playerWon = winner == playerPiece.Team;
+            playerPiece.DisableControl();
+        }
+
+        // Result on screen a moment later (the last piece breaking apart is seen first).
+        if (resultOverlay != null)
+            resultOverlay.Show(playerWon, playerRole, resultDelay);
+        else
+            Debug.LogWarning("[ArenaController] No result UI assigned (Match Result > Result Overlay).");
+
         OnMatchEnd?.Invoke(winner);
     }
 
@@ -592,6 +629,8 @@ public class ArenaController : MonoBehaviour
     public void ClearArena()
     {
         matchEnded = false;
+        if (resultOverlay != null)
+            resultOverlay.Hide();
         playerSpawned = false;
 
         if (playerPiece)

@@ -101,7 +101,7 @@ public class PawnSkill : ActiveSkill
 
         // The pawn is flung exactly like its clones (random direction), so it mixes in.
         if (ctx.fps != null)
-            ctx.fps.AddExternalImpulse(PickScatterVelocity(transform.position));
+            ctx.fps.AddExternalImpulse(PickScatterVelocity(transform.position, ctx.fps));
     }
 
     protected override void TickActive(in SkillContext ctx)
@@ -128,9 +128,19 @@ public class PawnSkill : ActiveSkill
     // SCATTER (random, but always landing inside the arena)
     // =========================
 
-    /// <summary>Random upward-hemisphere throw whose landing point stays inside the arena.</summary>
-    private Vector3 PickScatterVelocity(Vector3 from)
+    /// <summary>The clones' own controller (their prefab): their throw is predicted with its gravity and bounces.</summary>
+    private ChessPieceFPSController CloneBodyController() =>
+        pawnClonePrefab != null ? pawnClonePrefab.GetComponent<ChessPieceFPSController>() : null;
+
+    /// <summary>
+    /// Random upward-hemisphere throw whose resting point stays inside the arena
+    /// (predicted with the thrown body's gravity and bounces).
+    /// </summary>
+    private Vector3 PickScatterVelocity(Vector3 from, ChessPieceFPSController body)
     {
+        float gravity = body != null ? body.Gravity : -9.81f;
+        float bounciness = body != null ? body.KnockbackBounciness : 0f;
+        float minBounce = body != null ? body.MinBounceSpeed : float.PositiveInfinity;
         Vector3 v = Vector3.zero;
         for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
         {
@@ -138,7 +148,7 @@ public class PawnSkill : ActiveSkill
             dir.y = Mathf.Abs(dir.y);
             v = dir.normalized * scatterForce + Vector3.up * upwardForce;
 
-            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, ChessPieceFPSController.ScatterGravity), arenaMargin))
+            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, gravity, bounciness, minBounce), arenaMargin))
                 return v;
         }
 
@@ -199,7 +209,7 @@ public class PawnSkill : ActiveSkill
 
         AttachWeaponVisual(clone);
 
-        clone.Activate(cloneLifetime, dissolveTime, destroyVFX, pool, PickScatterVelocity(pos), cloneHealth, OnCloneKilled);
+        clone.Activate(cloneLifetime, dissolveTime, destroyVFX, pool, PickScatterVelocity(pos, CloneBodyController()), cloneHealth, OnCloneKilled);
         clone.gameObject.SetActive(true);
 
         if (spawnVFX)

@@ -186,13 +186,13 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         Vector3 target;
         if (!hasPredictedEnd && u >= maxArcParameter)
         {
-            // Past the arc: the leap goes on as a normal fall (same gravity as a knock-back), keeping its momentum.
+            // Past the arc: the leap goes on as a normal fall (the knight's own gravity), keeping its momentum.
             if (!freeFalling)
             {
                 freeFalling = true;
                 fallVelocity = ArcVelocity(maxArcParameter);
             }
-            fallVelocity.y += ChessPieceFPSController.ScatterGravity * ctx.deltaTime;
+            fallVelocity.y += (fps != null ? fps.Gravity : -9.81f) * ctx.deltaTime;
             target = transform.position + fallVelocity * ctx.deltaTime;
         }
         else

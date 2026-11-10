@@ -70,6 +70,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float jumpHeight = 3.5f;
     [SerializeField] private float gravity = -9.81f;
+    /// <summary>This piece's gravity (walking, jumping and knock-back flights all use it).</summary>
+    public float Gravity => gravity;
+    /// <summary>Knock-back bounces (used to predict where a thrown piece comes to rest).</summary>
+    public float KnockbackBounciness => knockbackBounciness;
+    public float MinBounceSpeed => minBounceSpeed;
 
     private float verticalVelocity;
     private bool isGrounded;
@@ -87,9 +92,6 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     // SCATTER / MULTI-FRAME IMPULSE
     // =========================
     private Vector3 scatterVelocityOwner;
-    /// <summary>Gravity of a knock-back / scatter flight (also used to predict where a throw lands).</summary>
-    public const float ScatterGravity = -25f;
-    private float scatterGravity = ScatterGravity;
     private bool scatting = false;
     private bool scatterAirborne;
     private bool fireHeldThroughBlock;
@@ -99,6 +101,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     [SerializeField] private float knockbackGroundFriction = 8f;
     [Tooltip("A sliding knock-back ends below this speed (m/s).")]
     [SerializeField] private float knockbackStopSpeed = 0.5f;
+    [Tooltip("A knocked piece bounces off walls and the ground: share of the speed into the surface it keeps (0 = no bounce).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float knockbackBounciness = 0.5f;
+    [Tooltip("It only bounces off the ground when it hits it at least this fast (m/s); slower, it lands.")]
+    [SerializeField] private float minBounceSpeed = 3f;
 
     // =========================
     // MOUSE LOOK
@@ -510,6 +517,52 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         scatterVelocityOwner = impulse;
         scatting = true;
         scatterAirborne = false;
+    }
+
+    /// <summary>
+    /// A knocked piece about to hit a wall (or the ground fast enough, while flying) bounces off it like a real body:
+    /// moves up to the surface, then v' = v - (1 + e)(v.n)n (the part into the surface is reversed and scaled by e,
+    /// the part along it is kept), so every bounce is weaker. Other pieces are not bounced off.
+    /// </summary>
+    private bool TryBounce(Vector3 step)
+    {
+        float distance = step.magnitude;
+        if (knockbackBounciness <= 0f || distance < 1e-5f || controller == null)
+            return false;
+
+        Vector3 center = controller.bounds.center;
+        float half = Mathf.Max(0f, controller.height * 0.5f - controller.radius);
+        int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+        // Nearest surface ahead that is not part of this piece (its own weapon, overlay copies...).
+        RaycastHit hit = default;
+        bool found = false;
+        foreach (RaycastHit h in Physics.CapsuleCastAll(center + Vector3.up * half, center - Vector3.up * half, controller.radius * 0.95f,
+                     step / distance, distance + controller.skinWidth, mask, QueryTriggerInteraction.Ignore))
+        {
+            if (h.collider == null || h.distance <= 0f || h.collider.transform.IsChildOf(transform))
+                continue;
+            if (!found || h.distance < hit.distance)
+            {
+                hit = h;
+                found = true;
+            }
+        }
+        if (!found)
+            return false;
+
+        Vector3 n = hit.normal;
+        float into = Vector3.Dot(scatterVelocityOwner, n); // < 0: moving into the surface
+        if (into >= 0f)
+            return false;
+
+        bool ground = Vector3.Angle(n, Vector3.up) <= controller.slopeLimit;
+        if (ground && (!scatterAirborne || -into < minBounceSpeed))
+            return false; // sliding along it, or too slow: lands as usual
+
+        controller.Move(step / distance * Mathf.Max(0f, hit.distance - controller.skinWidth));
+        scatterVelocityOwner -= (1f + knockbackBounciness) * into * n;
+        scatterAirborne = true;
+        return true;
     }
 
     /// <summary>Flying / sliding from a knock-back right now.</summary>
@@ -1039,9 +1092,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
         if (scatting)
         {
-            scatterVelocityOwner.y += scatterGravity * Time.deltaTime;
+            scatterVelocityOwner.y += gravity * Time.deltaTime; // a knocked piece falls with its own gravity
 
             Vector3 scrat = scatterVelocityOwner * Time.deltaTime;
+            if (TryBounce(scrat))
+                return; // bounced off a wall / the ground this frame
             CollisionFlags flags = controller.Move(scrat);
             bool onGround = (flags & CollisionFlags.Below) != 0 && scatterVelocityOwner.y < 0f;
 

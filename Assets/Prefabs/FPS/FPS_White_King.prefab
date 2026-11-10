@@ -74,10 +74,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f587df51559dc094a8c22e7b156ea7f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  team: 0
   cameraPoint: {fileID: 3444634153833480865}
-  moveSpeed: 5
-  jumpHeight: 1.9
-  gravity: -19.81
+  moveSpeed: 8
+  jumpHeight: 2.5
+  gravity: -39.81
+  knockbackGroundFriction: 8
+  knockbackStopSpeed: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -105,11 +108,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cooldown: 5
   blockMask: 6
-  kingHealth: {fileID: 4089217182619135906}
   pullRadius: 20
   gravityRadius: 10
   pullExposeDelay: 1
   pullSpeed: 0.25
+  headOnAngle: 80
+  collisionSpeedScale: 0.5
+  collisionBounce: 0.2
+  wallPullForce: 10
+  pullArcHeight: 16
   moveMultiplier: 0.4
   jumpMultiplier: 0.135
   activeDuration: 4
@@ -166,10 +173,8 @@ MonoBehaviour:
       m_RotationOrder: 4
   maxStacks: 3
   healthPerStack: 100
-  maxShieldIntegrity: 150
-  shieldIntegrity: 0
-  shieldDamageMultiplier: 0.3
   shieldBlockAngle: 90
+  shieldReducedDamageTaken: 0.3
 --- !u!1 &4761031546615991466
 GameObject:
   m_ObjectHideFlags: 0

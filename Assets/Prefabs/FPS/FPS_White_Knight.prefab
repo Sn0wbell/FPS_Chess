@@ -117,10 +117,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  team: 0
   cameraPoint: {fileID: 9010836002474895884}
-  moveSpeed: 5
-  jumpHeight: 1.9
-  gravity: -19.81
+  moveSpeed: 8
+  jumpHeight: 2.5
+  gravity: -39.81
+  knockbackGroundFriction: 8
+  knockbackStopSpeed: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -151,12 +154,13 @@ MonoBehaviour:
   leapDistance: 30
   leapHeight: 12
   leapDuration: 0.9
-  impactDamageScale: 1
+  maxArcParameter: 2.5
+  impactDamage: 25
   impulseForce: 6
+  bounceFactor: 0.35
   landingRadius: 2.5
-  landingDamageScale: 1.2
-  landingKnockUpForce: 6
   landingShotDamageBonus: 0.3
+  leapDamageReduction: 0.65
   solidMask:
     serializedVersion: 2
     m_Bits: 1

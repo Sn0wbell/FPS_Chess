@@ -44,9 +44,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     [Tooltip("Damage of a hit: on the way, when a pulled piece arrives and by the landing blast (each piece takes it once per use).")]
     [SerializeField] private float impactDamage = 25f;
     [SerializeField] private float impactImpulseForce = 8f;
-    [Tooltip("When a pulled piece reaches the bishop, the bishop takes this share of the sideways bounce (the piece takes all of it).")]
+    [Tooltip("When a pulled piece reaches the bishop, the bishop takes this share of the piece's knock (sideways and upward).")]
     [Range(0f, 1f)]
-    [SerializeField] private float arrivalSelfKnockShare = 0.5f;
+    [SerializeField] private float arrivalSelfKnockShare = 0.7f;
     [Tooltip("Upward bounce of a hit = this x the impact strength (glancing hits barely bounce).")]
     [SerializeField] private float bounceFactor = 0.35f;
 
@@ -86,6 +86,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     private bool hasValidTarget;
 
     private Collider hookedSurface; // the map / wall collider the rope hooked (self pull)
+    private bool hookedGround;      // ...and it is walkable ground: the bishop lands right on the hook point
+    private readonly HashSet<ChessPieceFPSController> hitThisUse = new HashSet<ChessPieceFPSController>(); // damaged once per use
+    private int stalledFrames; // self pull making no progress (pressed against a piece that cannot move)
 
     private Transform anchor;
     private Transform trail;
@@ -115,6 +118,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     {
         // Same arena area as the out-of-bounds rule (single source).
         hasArenaBounds = ArenaController.Current != null && ArenaController.Current.TryGetBounds(out arenaBounds);
+        hitThisUse.Clear();
+        stalledFrames = 0;
 
         AcquireTarget();
 
@@ -283,7 +288,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         }
 
         Vector3 before = transform.position;
-        if (!PullTowards(controller, targetPos, pullSpeed, dt, hookedSurface, out bool arrived))
+        if (!PullTowards(controller, targetPos, pullSpeed, dt, hookedSurface, out bool arrived, landOnGoal: hookedGround))
         {
             FinishActive(); // head-on into the ground / a wall: the pull stops
             return;
@@ -296,8 +301,16 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         }
 
         Vector3 velocity = dt > 0f ? (transform.position - before) / dt : Vector3.zero;
-        if (HitPiecesOnTheWay(velocity))
-            return; // a piece was hit: the pull is over
+        HitPiecesOnTheWay(velocity); // pieces in the way are knocked aside; the pull goes on
+
+        // Pressed head-on against a piece that cannot be pushed away (e.g. against a wall): stops like on terrain.
+        float expected = pullSpeed * dt;
+        stalledFrames = !arrived && expected > 1e-4f && (transform.position - before).magnitude < expected * 0.05f ? stalledFrames + 1 : 0;
+        if (stalledFrames >= 3)
+        {
+            FinishActive();
+            return;
+        }
 
         if (arrived)
         {
@@ -351,12 +364,13 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     /// Returns false when blocked head-on. The hooked surface itself is never "head-on": touching it
     /// near the hook point is the arrival, elsewhere it is slid along.
     /// </summary>
-    private bool PullTowards(CharacterController cc, Vector3 goal, float speed, float dt, Collider goalSurface, out bool arrived)
+    private bool PullTowards(CharacterController cc, Vector3 goal, float speed, float dt, Collider goalSurface, out bool arrived, bool landOnGoal = false)
     {
         Transform t = cc.transform;
         Vector3 toGoal = goal - t.position;
         float distance = toGoal.magnitude;
-        float arriveDistance = cc.radius + 0.1f;
+        // Hooked ground: the feet land right on the hook point. Otherwise (a wall, a piece): the body reaches it.
+        float arriveDistance = landOnGoal ? 0.1f + cc.skinWidth : cc.radius + 0.1f;
         arrived = distance <= arriveDistance;
         if (arrived || dt <= 0f)
             return true;
@@ -374,7 +388,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             Vector3 n = surface.normal;
             bool hookedOne = goalSurface != null && surface.collider == goalSurface;
             // The hooked surface right ahead, next to the hook point (the gap left counts): arrived.
-            if (hookedOne && Vector3.Distance(SkillTargeting.ClosestPointOnBody(cc, goal), goal) <= surface.distance + 0.3f)
+            // (Hooked ground: not yet, the feet go on to the hook point itself.)
+            if (hookedOne && !landOnGoal && Vector3.Distance(SkillTargeting.ClosestPointOnBody(cc, goal), goal) <= surface.distance + 0.3f)
             {
                 arrived = true; // reached the hook point
                 return true;
@@ -388,8 +403,13 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             move = along * step;                            // slides, speed x cos(angle)
         }
 
+        Vector3 before = t.position;
         cc.Move(move);
-        arrived = Vector3.Distance(t.position, goal) <= arriveDistance;
+        float left = Vector3.Distance(t.position, goal);
+        arrived = left <= arriveDistance;
+        // Landing on the ground but something keeps the feet off the exact point: close enough, it has landed.
+        if (!arrived && landOnGoal && left <= cc.radius + 0.1f && (t.position - before).sqrMagnitude < 1e-4f)
+            arrived = true;
         return true;
     }
 
@@ -503,6 +523,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         hookedEnemyController = null;
         hookedWall = null;
         hookedSurface = hit.collider;
+        hookedGround = Vector3.Angle(hit.normal, Vector3.up) <= (controller != null ? controller.slopeLimit : 45f);
 
         int layer = 1 << hit.collider.gameObject.layer;
         targetPos = hit.point;
@@ -546,38 +567,44 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     // =========================
 
     /// <summary>Self pull: pieces met on the way are hit once (billiard). Returns true when the pull ended.</summary>
-    private bool HitPiecesOnTheWay(Vector3 velocity)
+    /// <summary>
+    /// Self pull: a piece in front of the bishop is knocked away like by a landing at contact (same knock in every
+    /// case) and hurt once per use. The bishop is not pushed: it keeps following its rope (a piece that cannot be
+    /// pushed away, e.g. against a wall, is slid along like terrain).
+    /// </summary>
+    private void HitPiecesOnTheWay(Vector3 velocity)
     {
         Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
-        Vector3 myVel = flat.sqrMagnitude > 1e-6f ? flat.normalized * impactImpulseForce : Vector3.zero;
+        if (flat.sqrMagnitude < 1e-6f)
+            return;
 
         foreach (Collider col in Physics.OverlapSphere(transform.position, impactRadius, enemyMask, QueryTriggerInteraction.Ignore))
         {
             ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
-            if (!SkillTargeting.IsAffectable(fps, otherFps))
+            if (!SkillTargeting.IsAffectable(fps, otherFps) || hitThisUse.Contains(otherFps))
                 continue;
 
-            float impact = SkillTargeting.BilliardCollision(transform.position, myVel, otherFps.transform.position, Vector3.zero,
-                bounceFactor, out Vector3 myBounce, out Vector3 knock);
-            if (impact <= 0f)
+            Vector3 toPiece = otherFps.transform.position - transform.position;
+            toPiece.y = 0f;
+            if (Vector3.Dot(toPiece, flat) <= 0f)
                 continue; // not in front of the bishop: not hit
-
-            Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
+            hitThisUse.Add(otherFps);
 
             // Ngắt riêng các skill đang trực tiếp điều khiển chuyển động.
             InterruptMovementSkills(otherFps);
-            otherFps.AddExternalImpulse(knock);
-
-            // Bishop không tiếp tục kéo enemy sau khi impact đã xảy ra.
-            FinishActive();
-            // The bishop was being pulled along its rope: at most it slides off sideways, it never bounces up.
-            Vector3 slide = new Vector3(myBounce.x, 0f, myBounce.z);
-            if (slide.sqrMagnitude > 1e-4f)
-                fps.AddExternalImpulse(slide);
-            return true;
+            otherFps.AddExternalImpulse(ContactKnock(toPiece, flat));
+            Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
         }
+    }
 
-        return false;
+    /// <summary>The knock a piece gets from the bishop's impacts at contact (same as a landing blast at contact).</summary>
+    private Vector3 ContactKnock(Vector3 away, Vector3 fallback)
+    {
+        away.y = 0f;
+        if (away.sqrMagnitude < 1e-6f)
+            away = new Vector3(fallback.x, 0f, fallback.z);
+        Vector3 dir = away.sqrMagnitude > 1e-6f ? away.normalized : Vector3.forward;
+        return dir * impactImpulseForce + Vector3.up * (bounceFactor * impactImpulseForce);
     }
 
     /// <summary>The pulled piece reached the bishop: both bounce like two charges meeting; only the piece is hurt.</summary>
@@ -588,29 +615,32 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         toPiece.y = 0f;
         Vector3 n = toPiece.sqrMagnitude > 1e-6f ? toPiece.normalized : transform.forward;
 
-        SkillTargeting.BilliardCollision(
-            transform.position, n * impactImpulseForce,
-            piece.transform.position, -n * impactImpulseForce,
-            bounceFactor, out Vector3 myBounce, out Vector3 pieceBounce);
+        // Same impact as when the bishop's own pull hits a piece (impactImpulseForce, not two charges adding up):
+        // the piece is knocked away, the bishop takes a share of the same knock back.
+        Vector3 pieceBounce = ContactKnock(n, n);
+        Vector3 myBounce = ContactKnock(-n, -n) * arrivalSelfKnockShare;
 
         Damage(piece, piece.transform.position, -n);
 
         ReleaseHookedEnemy();   // its movement and gravity are given back before the bounce
         FinishActive();
         piece.AddExternalImpulse(pieceBounce);
-        // The bishop takes only part of the sideways bounce (e.g. the piece flies 8, the bishop 4).
-        fps.AddExternalImpulse(new Vector3(myBounce.x * arrivalSelfKnockShare, myBounce.y, myBounce.z * arrivalSelfKnockShare));
+        fps.AddExternalImpulse(myBounce); // e.g. the piece flies 8, the bishop 4 (and half as high)
     }
 
-    /// <summary>Self pull arrival: blast around the bishop, fading with distance; damage once per use.</summary>
+    /// <summary>
+    /// Self pull arrival: blast around the bishop, measured from the bishop's body to the other body
+    /// (edge to edge): full strength when touching, fading to nothing at landingRadius; damage once per use.
+    /// </summary>
     private void ResolveLanding()
     {
         var hitThisLanding = new HashSet<ChessPieceFPSController>();
+        float myRadius = controller != null ? controller.radius : 0f;
 
-        foreach (Collider col in Physics.OverlapSphere(transform.position, landingRadius, enemyMask, QueryTriggerInteraction.Ignore))
+        foreach (Collider col in Physics.OverlapSphere(transform.position, landingRadius + myRadius + 2f, enemyMask, QueryTriggerInteraction.Ignore))
         {
             ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
-            if (!SkillTargeting.IsAffectable(fps, otherFps) || !hitThisLanding.Add(otherFps))
+            if (!SkillTargeting.IsAffectable(fps, otherFps) || hitThisLanding.Contains(otherFps))
                 continue;
 
             Vector3 flat = otherFps.transform.position - transform.position;
@@ -618,10 +648,17 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             float distance = flat.magnitude;
             flat = distance > 1e-3f ? flat / distance : new Vector3(transform.forward.x, 0f, transform.forward.z).normalized;
 
-            float strength = impactImpulseForce * (1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, landingRadius)));
+            var otherCc = otherFps.GetComponent<CharacterController>();
+            float edgeDistance = Mathf.Max(0f, distance - myRadius - (otherCc != null ? otherCc.radius : 0f));
+            if (edgeDistance > landingRadius || Mathf.Abs(otherFps.transform.position.y - transform.position.y) > landingRadius + 2f)
+                continue; // outside the blast
+            hitThisLanding.Add(otherFps);
+
+            float strength = impactImpulseForce * (1f - Mathf.Clamp01(edgeDistance / Mathf.Max(0.01f, landingRadius)));
             otherFps.AddExternalImpulse(flat * strength + Vector3.up * (bounceFactor * strength));
 
-            Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), Vector3.down);
+            if (hitThisUse.Add(otherFps)) // already hit on the way: knocked again, not hurt again
+                Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), Vector3.down);
         }
     }
 

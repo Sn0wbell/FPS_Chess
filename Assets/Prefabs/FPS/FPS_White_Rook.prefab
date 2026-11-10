@@ -238,10 +238,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e778de6d5ab95c840b17ab339969c6fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  team: 0
   cameraPoint: {fileID: 1271318252477713056}
-  moveSpeed: 5
-  jumpHeight: 1.9
-  gravity: -19.81
+  moveSpeed: 8
+  jumpHeight: 2.5
+  gravity: -39.81
+  knockbackGroundFriction: 8
+  knockbackStopSpeed: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -273,6 +276,7 @@ MonoBehaviour:
   dashSpeed: 20
   impactDamage: 10
   pushForce: 15
+  bounceFactor: 0.35
   obstacleCheckRadius: 0.5
   obstacleMask:
     serializedVersion: 2
