@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Zone
   quadCount: 36
-  cageHeight: 32
+  cageHeight: 64
   growTime: 0.15
   collapseTime: 0.2
   cageColor: {r: 1, g: 0.4509804, b: 0, a: 0.7647059}
