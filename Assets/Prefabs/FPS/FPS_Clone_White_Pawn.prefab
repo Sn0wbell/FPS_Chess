@@ -229,13 +229,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   team: 0
   cameraPoint: {fileID: 0}
-  moveSpeed: 8
+  moveSpeed: 10
   jumpHeight: 2.5
   gravity: -39.81
   knockbackGroundFriction: 8
   knockbackStopSpeed: 0.5
+  maxStandAngle: 75
   knockbackBounciness: 0.5
   minBounceSpeed: 3
+  groundBounciness: 0.3
+  groundBounceFriction: 0.5
+  maxGroundBounces: 2
+  pieceBounciness: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60

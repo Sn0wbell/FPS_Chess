@@ -283,3 +283,5 @@ MonoBehaviour:
   redZonePrefab: {fileID: 2992163428134208009, guid: 3f878df8a026b8f4fbcef61dc9a0f9a6, type: 3}
   pushSpherePrefab: {fileID: 1315397177987353700, guid: 0a8c637db702e504699750f712a19d26, type: 3}
   sphereFadeStartNormalized: 0.55
+  markSeconds: 3
+  revealMaterial: {fileID: 2100000, guid: 2e2ace13be98486c8adc5d3964133e83, type: 2}

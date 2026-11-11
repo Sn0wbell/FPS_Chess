@@ -336,7 +336,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   team: 0
   cameraPoint: {fileID: 1271318252477713056}
-  moveSpeed: 8
+  moveSpeed: 10
   jumpHeight: 2.5
   gravity: -39.81
   knockbackGroundFriction: 8

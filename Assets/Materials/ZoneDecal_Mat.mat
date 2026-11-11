@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: RedZoneDecal_Mat
+  m_Name: ZoneDecal_Mat
   m_Shader: {fileID: -6465566751694194690, guid: fa4f0f73c1234935b6c0ab121334ca3e,
     type: 3}
   m_Parent: {fileID: 0}

@@ -202,6 +202,8 @@ MonoBehaviour:
   moveMultiplier: 0.4
   jumpMultiplier: 0.25
   activeDuration: 4
+  markSeconds: 3
+  revealMaterial: {fileID: 2100000, guid: 2e2ace13be98486c8adc5d3964133e83, type: 2}
   pullZonePrefab: {fileID: 3296097815093323866, guid: c96fb4f5debbe564a9f49b9da2e3d979, type: 3}
   gravityZonePrefab: {fileID: 3296097815093323866, guid: 9122feebf424ff54b98fd2f16d28a0d1, type: 3}
   enemyLayer:

@@ -22,10 +22,12 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
         public float explosionForce;
         public float bounceFactor;
         public LayerMask obstacleLayer;
+        public float markSeconds;   // enemies caught in a blast are revealed to the queen's side this long
     }
 
     private Settings settings;
     private ChessPieceFPSController owner;
+    private bool hasTeam; // fired by a queen (her side is known)
     private GameObject damageSource;
     private float explodeAt;
     private readonly List<RedZone> zones = new();
@@ -41,6 +43,7 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
         var volley = new GameObject("GrenadeVolley").AddComponent<GrenadeVolley>();
         volley.owner = owner;
         volley.Team = owner != null ? owner.Team : Team.White;
+        volley.hasTeam = owner != null;
         volley.damageSource = owner != null ? owner.gameObject : null;
         volley.settings = settings;
         volley.explodeAt = explodeAt;
@@ -136,6 +139,8 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
         {
             if (!SkillTargeting.IsAlive(pair.Key))
                 continue;
+            if (hasTeam && pair.Key.Team != Team)
+                RevealSystem.Reveal(pair.Key, Team, settings.markSeconds);
             pair.Key.AddExternalImpulse(SkillTargeting.RadialKnock(pair.Value.from, pair.Key.transform.position,
                 settings.radius, settings.explosionForce, settings.bounceFactor));
         }

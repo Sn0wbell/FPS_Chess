@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using static ZoneOverlaySystem;
 
 public class Zone : MonoBehaviour
@@ -21,6 +22,29 @@ public class Zone : MonoBehaviour
     [SerializeField] protected float pulseSpeed = 3f;
     [SerializeField] protected float pulseMinAlpha = 0.15f;
     [SerializeField] protected float pulseMaxAlpha = 0.35f;
+
+    [Header("Decal (surfaces without the overlay shader: trees, rocks, roofs, rook walls)")]
+    [Tooltip("Decal material (ZoneDecal_Mat); its texture is made from cageColor. Empty = no decal.")]
+    [SerializeField] protected Material decalMaterial;
+    [Tooltip("The decal marks surfaces this far above / below the zone's centre.")]
+    [SerializeField] protected float decalDepth = 2f;
+    [Tooltip("Surfaces steeper than this (tree trunks, walls' sides, undersides) are not marked.")]
+    [Range(0f, 180f)]
+    [SerializeField] protected float decalMaxAngle = 60f;
+
+    private const float DecalAngleFadeWidth = 10f;
+    private const int DecalTextureSize = 128;
+
+    private DecalProjector decal;
+    private Material decalMaterialInstance;
+    private Texture2D decalTexture;
+    private Color decalTextureColor;
+
+    /// <summary>True while the zone is (also) drawn by its decal.</summary>
+    public bool UsesDecal => decal != null && decal.enabled;
+
+    /// <summary>How far above / below its centre the decal marks surfaces; set before Activate.</summary>
+    public float DecalDepth { get => decalDepth; set => decalDepth = value; }
 
     // =========================
     // INTERNAL
@@ -119,6 +143,10 @@ public class Zone : MonoBehaviour
         );
 
         lifeRoutine = StartCoroutine(LifeRoutine(duration));
+
+        // Every other surface (trees, rocks, roofs, rook walls) is marked by the decal; the overlay
+        // ground / water does not take it (DBuffer decals skip the custom overlay shader).
+        SetDecal(true, radius);
     }
 
     public virtual void Deactivate()
@@ -132,8 +160,82 @@ public class Zone : MonoBehaviour
             cageId = -1;
         }
 
+        if (decal != null)
+            decal.enabled = false;
+
         gameObject.SetActive(false);
     }
+
+    protected void OnDestroy()
+    {
+        if (decalMaterialInstance != null) Destroy(decalMaterialInstance);
+        if (decalTexture != null) Destroy(decalTexture);
+    }
+
+    // =========================
+    // DECAL
+    // =========================
+    /// <summary>Turns the zone's decal on (decalMaterial set) or off; projected straight down from its centre.</summary>
+    protected void SetDecal(bool on, float radius)
+    {
+        if (!on || decalMaterial == null)
+        {
+            if (decal != null)
+                decal.enabled = false;
+            return;
+        }
+
+        if (decal == null)
+        {
+            var go = new GameObject("ZoneDecal");
+            go.transform.SetParent(transform, false);
+            decal = go.AddComponent<DecalProjector>();
+            decalMaterialInstance = new Material(decalMaterial);
+            decal.material = decalMaterialInstance;
+        }
+
+        if (decalTexture == null || decalTextureColor != cageColor)
+            BuildDecalTexture();
+
+        // Projected straight down, a box as wide as the zone and DecalDepth above / below its centre.
+        decal.transform.localPosition = Vector3.zero;
+        decal.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        decal.size = new Vector3(radius * 2f, radius * 2f, decalDepth * 2f);
+        decal.pivot = Vector3.zero;
+        decal.startAngleFade = Mathf.Max(0f, decalMaxAngle - DecalAngleFadeWidth);
+        decal.endAngleFade = decalMaxAngle;
+        decal.fadeFactor = pulseMaxAlpha;
+        decal.enabled = true;
+    }
+
+    /// <summary>A filled disc in the zone's colour (sharp edge, like the overlay).</summary>
+    private void BuildDecalTexture()
+    {
+        if (decalTexture == null)
+            decalTexture = new Texture2D(DecalTextureSize, DecalTextureSize, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+
+        var pixels = new Color32[DecalTextureSize * DecalTextureSize];
+        float half = DecalTextureSize * 0.5f;
+        for (int y = 0; y < DecalTextureSize; y++)
+            for (int x = 0; x < DecalTextureSize; x++)
+            {
+                float dx = x + 0.5f - half, dy = y + 0.5f - half;
+                float a = Mathf.Clamp01(half - Mathf.Sqrt(dx * dx + dy * dy)); // 1px soft edge
+                pixels[y * DecalTextureSize + x] = new Color(cageColor.r, cageColor.g, cageColor.b, a);
+            }
+        decalTexture.SetPixels32(pixels);
+        decalTexture.Apply(false);
+        decalTextureColor = cageColor;
+        decalMaterialInstance.SetTexture("Base_Map", decalTexture);
+    }
+
+    /// <summary>The decal fades with the overlay's alpha.</summary>
+    protected void SetDecalAlpha(float a)
+    {
+        if (decal != null && decal.enabled)
+            decal.fadeFactor = a;
+    }
+
 
     // =========================
     // LIFECYCLE
@@ -167,6 +269,7 @@ public class Zone : MonoBehaviour
 
         // ===== Overlay (ground) =====
         ZoneOverlaySystem.UpdateColor(cageId, c);
+        SetDecalAlpha(alpha);
 
         // ===== Cage (mesh) =====
         if (sharedMaterial != null)

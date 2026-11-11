@@ -45,11 +45,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Zone
   quadCount: 36
-  cageHeight: 6
+  cageHeight: 32
   growTime: 0.15
   collapseTime: 0.2
   cageColor: {r: 1, g: 0.4509804, b: 0, a: 0.7647059}
   overlayType: 1
   pulseSpeed: 5
-  pulseMinAlpha: 0.35
-  pulseMaxAlpha: 0.75
+  pulseMinAlpha: 0.25
+  pulseMaxAlpha: 0.55
+  decalMaterial: {fileID: 2100000, guid: 464c06aee03a4bca807052fe84b79c6b, type: 2}
+  decalDepth: 2
+  decalMaxAngle: 60

@@ -293,7 +293,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   team: 0
   cameraPoint: {fileID: 5842467594253573517}
-  moveSpeed: 8
+  moveSpeed: 10
   jumpHeight: 2.5
   gravity: -39.81
   knockbackGroundFriction: 8
@@ -426,3 +426,5 @@ MonoBehaviour:
   pushSpherePrefab: {fileID: 1315397177987353700, guid: 0a8c637db702e504699750f712a19d26, type: 3}
   sphereMaxAlpha: 0.65
   sphereMinAlpha: 0
+  markSeconds: 3
+  revealMaterial: {fileID: 2100000, guid: 2e2ace13be98486c8adc5d3964133e83, type: 2}

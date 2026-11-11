@@ -84,6 +84,15 @@ public class QueenSkill : ActiveSkill
     public float sphereMinAlpha = 0f;
 
     // =========================
+    // MARK
+    // =========================
+    [Header("Mark")]
+    [Tooltip("Enemies pushed, targeted by the grenades or caught in a blast are revealed to the queen's side (through walls) this long.")]
+    public float markSeconds = 3f;
+    [Tooltip("Material made from the 'FPSChess/XRayReveal' shader (a runtime fallback is created if empty).")]
+    public Material revealMaterial;
+
+    // =========================
     // AI AWARENESS (UNCHANGED)
     // =========================
     public bool IsActiveRedZone => activeRedZones.Count > 0;
@@ -136,6 +145,8 @@ public class QueenSkill : ActiveSkill
     {
         base.Initialize(ctx);
         fps = ctx.fps;
+        if (revealMaterial != null)
+            RevealSystem.XRayMaterial = revealMaterial;
     }
 
     protected override void OnEnterActive(in SkillContext ctx)
@@ -211,7 +222,8 @@ public class QueenSkill : ActiveSkill
             mask = enemyLayer | obstacleLayer,
             spherePrefab = pushSpherePrefab,
             maxAlpha = sphereMaxAlpha,
-            minAlpha = sphereMinAlpha
+            minAlpha = sphereMinAlpha,
+            markSeconds = markSeconds
         }, p => pushedPieces.Add(p), () => { if (wave == created) wave = null; });
         wave = created;
     }
@@ -269,7 +281,8 @@ public class QueenSkill : ActiveSkill
             damageCurve = damageCurve,
             explosionForce = explosionForce,
             bounceFactor = bounceFactor,
-            obstacleLayer = obstacleLayer
+            obstacleLayer = obstacleLayer,
+            markSeconds = markSeconds
         }, Time.time + (positions.Count - 1) * interval + redZoneWarningTime, ReturnRedZone, OnVolleyExploded);
 
         for (int i = 0; i < positions.Count; i++)
@@ -345,6 +358,7 @@ public class QueenSkill : ActiveSkill
         for (int i = 0; i < targetCount && result.Count < budget; i++)
         {
             Vector3 center = enemies[i].transform.position;
+            RevealSystem.Reveal(enemies[i], fps.Team, markSeconds); // targeted: marked for the queen's side
             // Core zone directly at enemy position
             TryAddZone(center);
 

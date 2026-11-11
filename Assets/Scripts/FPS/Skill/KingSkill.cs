@@ -58,6 +58,15 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
     [SerializeField] private float activeDuration = 4f;
 
     // =========================
+    // MARK
+    // =========================
+    [Header("Mark")]
+    [Tooltip("Enemies pulled, or in the gravity zone, are revealed to the king's side (through walls) meanwhile and this long after.")]
+    [SerializeField] private float markSeconds = 3f;
+    [Tooltip("Material made from the 'FPSChess/XRayReveal' shader (a runtime fallback is created if empty).")]
+    [SerializeField] private Material revealMaterial;
+
+    // =========================
     // VISUAL
     // =========================
     [Header("Visual Zones")]
@@ -68,7 +77,12 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
     [SerializeField] private LayerMask enemyLayer;
     [SerializeField] private LayerMask obstacleLayer;
 
+    // pullSpeed counts arc steps (1 / PathStep per pull) per frame at 60 FPS: it sets how long a pull lasts.
     private const float PathStep = 0.05f;
+    private const float ArcSearchStep = 0.025f;
+    private const float MaxArcParameter = 1.5f;   // no surface found up to here: it falls on under gravity
+    private const float LandingSearchBelow = 50f; // the landing surface is searched this far below the lower of piece / king
+    private const float MoveSubStep = 0.1f;
 
     private Zone pullZoneInstance;
     private Zone gravityZoneInstance;
@@ -91,10 +105,26 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
     // =========================
     // INTERNAL STRUCTS
     // =========================
+    /// <summary>
+    /// One pulled piece, flying like a knight's leap: u = elapsed / duration,
+    /// pos(u) = start + (end - start) * u,  y(u) += 4 * height * u * (1 - u).
+    /// end is the real surface at the landing spot, so it lands on it from any height.
+    /// </summary>
     private struct PullSession
     {
-        public List<Vector3> path;
-        public float progress;
+        public Vector3 start;
+        public Vector3 end;
+        public float height;
+        public float duration;
+        public float elapsed;
+        public float endU;          // where the arc meets a surface (precomputed)
+        public bool hasEnd;
+        public bool endIsWall;      // ...a wall / ceiling there: it stops and drops
+        public bool freeFalling;    // past the arc with nothing under it: normal gravity
+        public Vector3 fallVelocity;
+        public Vector3 feetOffset;  // pivot -> centre of the lower sphere of its body
+        public float castRadius;
+        public float slopeLimit;
     }
 
     // =========================
@@ -132,6 +162,8 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         base.Initialize(ctx);
         fps = ctx.fps;
         blockMask = SkillBlockMask.None; // the king moves, jumps, attacks and shields freely during his skill
+        if (revealMaterial != null)
+            RevealSystem.XRayMaterial = revealMaterial;
     }
 
     protected override void OnEnterActive(in SkillContext ctx)
@@ -176,14 +208,24 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         if (pullZonePrefab)
         {
             pullZoneInstance = Instantiate(pullZonePrefab, pos, Quaternion.identity);
+            pullZoneInstance.DecalDepth = PullColumnHalfHeight(pos); // marks every height it pulls from
             pullZoneInstance.Activate(pos, pullRadius, pullExposeDelay * 2f);
         }
 
         if (gravityZonePrefab)
         {
             gravityZoneInstance = Instantiate(gravityZonePrefab, pos, Quaternion.identity);
+            gravityZoneInstance.DecalDepth = gravityRadius; // as high as its sphere
             gravityZoneInstance.Activate(pos, gravityRadius, activeDuration);
         }
+    }
+
+    /// <summary>The pull reaches the whole height of the arena (far up and down without one).</summary>
+    private static float PullColumnHalfHeight(Vector3 center)
+    {
+        if (ArenaController.Current != null && ArenaController.Current.TryGetBounds(out Bounds arena))
+            return Mathf.Max(1f, center.y - arena.min.y, arena.max.y - center.y);
+        return 1000f;
     }
 
     private void UpdateZoneFollow()
@@ -221,38 +263,95 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
             ExecutePull();
     }
 
+    private float PullDuration => (1f / PathStep) / Mathf.Max(0.01f, pullSpeed * 60f);
+
     /// <summary>
-    /// Arc from start to end with one normalized parameter u in [0,1] (bounded: 1/PathStep points).
-    /// Stops early in front of an obstacle. Returns null when there is nothing to do.
+    /// The arc to the landing spot (horizontally: the gravity radius x its share of the pull radius, toward the king),
+    /// ending on the real surface there whether it is higher or lower than the piece or the king.
+    /// False when there is nothing to do (right at the king, or blocked at once).
     /// </summary>
-    /// <param name="bodyOffset">Pivot -> collider centre of the pulled piece (casts at body height, not at the feet).</param>
-    private List<Vector3> BuildPullPath(Vector3 start, Vector3 end, Vector3 bodyOffset, float castRadius)
+    private bool TryBuildPull(ChessPieceFPSController target, Vector3 center, out PullSession s)
     {
+        s = default;
+        Vector3 start = target.transform.position;
+        Vector3 offset = start - center;
+        Vector3 flat = new Vector3(offset.x, 0f, offset.z);
+        if (offset.magnitude <= 0.001f || flat.sqrMagnitude < 1e-6f)
+            return false;
+
+        Vector3 end = center + flat.normalized * (Mathf.Clamp01(offset.magnitude / pullRadius) * gravityRadius);
         float horizontal = Vector2.Distance(new Vector2(start.x, start.z), new Vector2(end.x, end.z));
         if (horizontal < 0.05f)
-            return null;
-
+            return false;
         float height = Mathf.Min(pullArcHeight, horizontal);
 
-        var path = new List<Vector3> { start };
-        Vector3 prev = start;
+        // The surface it lands on (searched from above the arc down past the lower of the piece and the king).
+        float top = Mathf.Max(start.y, center.y) + height + 2f;
+        float bottom = Mathf.Min(start.y, center.y) - LandingSearchBelow;
+        end.y = Physics.Raycast(new Vector3(end.x, top, end.z), Vector3.down, out RaycastHit ground, top - bottom, obstacleLayer, QueryTriggerInteraction.Ignore)
+            ? ground.point.y
+            : center.y;
 
-        for (float u = PathStep; u <= 1f + 1e-4f; u += PathStep)
+        CharacterController cc = target.GetComponent<CharacterController>();
+        s = new PullSession
         {
-            float uc = Mathf.Min(u, 1f);
-            Vector3 pos = Vector3.Lerp(start, end, uc);
-            pos.y += 4f * height * uc * (1f - uc); // parabol
+            start = start,
+            end = end,
+            height = height,
+            duration = PullDuration,
+            feetOffset = cc != null ? cc.bounds.center - start - Vector3.up * Mathf.Max(0f, cc.height * 0.5f - cc.radius) : Vector3.up * 0.4f,
+            castRadius = cc != null ? cc.radius * 0.9f : 0.3f,
+            slopeLimit = cc != null ? cc.slopeLimit : 45f
+        };
+        ComputePullEnd(ref s);
+        return !(s.hasEnd && s.endU <= 1e-3f);
+    }
 
+    private static Vector3 ArcPoint(in PullSession s, float u)
+    {
+        Vector3 pos = s.start + (s.end - s.start) * u;
+        pos.y += 4f * s.height * u * (1f - u); // parabol
+        return pos;
+    }
+
+    /// <summary>Velocity along the arc at u (per second).</summary>
+    private static Vector3 ArcVelocity(in PullSession s, float u) =>
+        ((s.end - s.start) + Vector3.up * (4f * s.height * (1f - 2f * u))) / Mathf.Max(0.01f, s.duration);
+
+    /// <summary>
+    /// Walks the arc (with the lower sphere of the body) until it meets a surface: ground on the way down = the
+    /// landing, a wall / ceiling = it stops there and drops. Walkable ground met on the way up is slid over.
+    /// </summary>
+    private void ComputePullEnd(ref PullSession s)
+    {
+        float u = 0f;
+        Vector3 prev = ArcPoint(s, 0f);
+        s.hasEnd = false;
+        s.endIsWall = false;
+        s.endU = float.PositiveInfinity;
+
+        while (u < MaxArcParameter)
+        {
+            float nextU = Mathf.Min(u + ArcSearchStep, MaxArcParameter);
+            Vector3 pos = ArcPoint(s, nextU);
             Vector3 delta = pos - prev;
             float dist = delta.magnitude;
-            if (dist > 0f && Physics.SphereCast(prev + bodyOffset, castRadius, delta / dist, out _, dist, obstacleLayer, QueryTriggerInteraction.Ignore))
-                break;
 
-            path.Add(pos);
+            if (dist > 0f && Physics.SphereCast(prev + s.feetOffset, s.castRadius, delta / dist, out RaycastHit hit, dist, obstacleLayer, QueryTriggerInteraction.Ignore))
+            {
+                bool walkable = Vector3.Angle(hit.normal, Vector3.up) <= s.slopeLimit;
+                if (!walkable || ArcVelocity(s, u).y <= 0f)
+                {
+                    s.endU = u + (nextU - u) * Mathf.Clamp01(hit.distance / dist);
+                    s.hasEnd = true;
+                    s.endIsWall = !walkable;
+                    return;
+                }
+            }
+
             prev = pos;
+            u = nextU;
         }
-
-        return path.Count > 1 ? path : null;
     }
 
     private void ExecutePull()
@@ -289,26 +388,18 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
             if (!SkillTargeting.IsAffectable(fps, target) || activePulls.ContainsKey(target))
                 continue;
 
-            Vector3 offset = target.transform.position - center;
-            float dist = offset.magnitude;
-            if (dist <= 0.001f) continue;
-
-            float targetDist = Mathf.Clamp01(dist / pullRadius) * gravityRadius;
-            CharacterController tcc = target.GetComponent<CharacterController>();
-            Vector3 bodyOffset = tcc != null ? tcc.bounds.center - target.transform.position : Vector3.up;
-            float castRadius = tcc != null ? tcc.radius * 0.5f : 0.2f;
-            List<Vector3> path = BuildPullPath(target.transform.position, center + offset.normalized * targetDist, bodyOffset, castRadius);
-            if (path == null)
+            if (!TryBuildPull(target, center, out PullSession session))
                 continue;
 
             // Taken over whatever moves it now (knock-back, its own grapple, another skill's pull).
             if (!target.ClaimForcedMove(this))
                 continue;
 
-            activePulls[target] = new PullSession { path = path, progress = 0f };
+            activePulls[target] = session;
             pulledThisUse.Add(target);
             target.SuppressMovement(this);
             target.SetGravityEnabled(this, false);
+            MarkIfEnemy(target);
         }
     }
 
@@ -328,25 +419,55 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
                 continue;
             }
 
+            MarkIfEnemy(target); // marked while it flies, and markSeconds after
+
             CharacterController cc = target.GetComponent<CharacterController>();
-            int last = s.path.Count - 1;
-            int index = Mathf.Min(Mathf.FloorToInt(s.progress), last);
-
-            s.progress += pullSpeed * 60f * dt; // frame-rate independent
-            int nextIndex = Mathf.Min(Mathf.FloorToInt(s.progress), last);
-
-            bool blocked = false;
-            if (nextIndex > index && cc != null)
+            if (cc == null)
             {
-                // Along the arc; against the ground / a wall it slides (checked at body height), head-on releases it.
-                Vector3 delta = s.path[nextIndex] - target.transform.position;
-                blocked = !SkillTargeting.SlideMove(cc, delta, obstacleLayer, headOnAngle);
-
-                // Real speed along the arc (path points per second x spacing), not this frame's jump.
-                pullVelocity[target] = (s.path[nextIndex] - s.path[index]) / (nextIndex - index) * (pullSpeed * 60f);
+                ReleasePulled(target);
+                continue;
             }
 
-            if (blocked || nextIndex >= last)
+            s.elapsed += dt;
+            float u = s.elapsed / Mathf.Max(0.01f, s.duration);
+            Vector3 goal, velocity;
+            if (!s.hasEnd && u >= MaxArcParameter)
+            {
+                // Past the arc with nothing under it: it falls on under its own gravity, keeping its momentum.
+                if (!s.freeFalling)
+                {
+                    s.freeFalling = true;
+                    s.fallVelocity = ArcVelocity(s, MaxArcParameter);
+                }
+                s.fallVelocity.y += target.Gravity * dt;
+                velocity = s.fallVelocity;
+                goal = target.transform.position + velocity * dt;
+            }
+            else
+            {
+                if (s.hasEnd) u = Mathf.Min(u, s.endU);
+                velocity = ArcVelocity(s, u);
+                goal = ArcPoint(s, u);
+            }
+
+            // Along the arc in small steps: touching down on the way down lands it there; head-on into
+            // something new (a wall raised meanwhile) releases it; otherwise it slides along.
+            Vector3 delta = goal - target.transform.position;
+            int subSteps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / MoveSubStep));
+            Vector3 step = delta / subSteps;
+            bool stopped = false;
+            for (int i = 0; i < subSteps && !stopped; i++)
+            {
+                CollisionFlags flags = cc.Move(step);
+                if ((flags & CollisionFlags.Below) != 0 && velocity.y < 0f)
+                    stopped = true;
+                else if ((flags & (CollisionFlags.Sides | CollisionFlags.Above)) != 0 && HeadOnObstacle(cc, step, s.slopeLimit))
+                    stopped = true;
+            }
+
+            pullVelocity[target] = velocity; // real speed along the arc
+
+            if (stopped || (s.hasEnd && s.elapsed / Mathf.Max(0.01f, s.duration) >= s.endU))
             {
                 ReleasePulled(target);
                 landedThisFrame.Add(target);
@@ -356,6 +477,31 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         }
 
         HandlePullCollisions();
+    }
+
+    /// <summary>Moving straight into a wall / ceiling (at headOnAngle or more), not onto walkable ground.</summary>
+    private bool HeadOnObstacle(CharacterController cc, Vector3 step, float slopeLimit)
+    {
+        float length = step.magnitude;
+        if (length < 1e-6f)
+            return false;
+        Vector3 dir = step / length;
+        Vector3 center = cc.bounds.center;
+        float half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+        if (!Physics.CapsuleCast(center + Vector3.up * half, center - Vector3.up * half, cc.radius * 0.95f, dir, out RaycastHit hit,
+                length + cc.skinWidth + 0.05f, obstacleLayer, QueryTriggerInteraction.Ignore))
+            return false;
+        if (Vector3.Angle(hit.normal, Vector3.up) <= slopeLimit)
+            return false;
+        float angle = Mathf.Asin(Mathf.Clamp01(Vector3.Dot(dir, -hit.normal))) * Mathf.Rad2Deg; // 0 = along it, 90 = straight in
+        return angle >= headOnAngle;
+    }
+
+    /// <summary>Revealed to the king's side (allies are slowed by the gravity zone too, never marked).</summary>
+    private void MarkIfEnemy(ChessPieceFPSController target)
+    {
+        if (fps != null && target != null && target.Team != fps.Team)
+            RevealSystem.Reveal(target, fps.Team, markSeconds);
     }
 
     /// <summary>
@@ -473,6 +619,8 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
             ChessPieceFPSController target = SkillTargeting.PieceOf(hits[i]);
             if (!SkillTargeting.IsAffectable(fps, target) || !gravityCurrent.Add(target))
                 continue;
+
+            MarkIfEnemy(target); // always marked inside, and markSeconds after it leaves (or the zone ends)
 
             if (gravityAffected.Add(target))
                 target.OverrideMovement(this, moveMultiplier, jumpMultiplier, knockMultiplier); // keyed by this king

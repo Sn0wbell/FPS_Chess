@@ -23,10 +23,12 @@ public class PushWave : MonoBehaviour
         public GameObject spherePrefab;
         public float maxAlpha;      // sphere alpha at the start...
         public float minAlpha;      // ...fading to this at the full radius
+        public float markSeconds;   // enemies pushed are revealed to the owner's side this long
     }
 
     private Settings settings;
     private ChessPieceFPSController owner;
+    private Team? markTeam;         // the owner's side (kept if the owner dies)
     private Vector3 center;
     private float elapsed;
     private bool done;
@@ -47,6 +49,7 @@ public class PushWave : MonoBehaviour
         var wave = new GameObject("PushWave").AddComponent<PushWave>();
         wave.transform.position = center;
         wave.owner = owner;
+        wave.markTeam = owner != null ? owner.Team : (Team?)null;
         wave.center = center;
         wave.settings = settings;
         wave.onPiecePushed = onPiecePushed;
@@ -108,6 +111,8 @@ public class PushWave : MonoBehaviour
     {
         float distance = Vector3.Distance(center, SkillTargeting.ClosestPointOnBody(body, center));
         target.AddExternalImpulse(Knock(target.transform.position, distance));
+        if (markTeam.HasValue && target.Team != markTeam.Value)
+            RevealSystem.Reveal(target, markTeam.Value, settings.markSeconds);
         onPiecePushed?.Invoke(target);
     }
 
