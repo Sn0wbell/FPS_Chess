@@ -22,6 +22,29 @@ public class Bullet : MonoBehaviour
     public int impactPoolSize = 128;
 
     private bool despawned; // back to the pool (a second contact in the same physics step is ignored)
+
+    [Header("Highlight (seen in flight, hidden behind walls)")]
+    public bool highlight = true;
+    [Tooltip("Shots of the player's own side.")]
+    public Color ownSideColor = new Color(1f, 0.92f, 0.55f, 0.85f);
+    [Tooltip("Shots of the other side.")]
+    public Color otherSideColor = new Color(1f, 0.2f, 0.15f, 0.85f);
+    [Tooltip("Width of the tracer where the bullet is / hit (m; thin at the muzzle end).")]
+    public float tracerWidth = 0.08f;
+    [Tooltip("The tracer is never thinner than this on screen (pixels): far shots stay visible.")]
+    public float tracerMinPixels = 1.5f;
+    [Tooltip("Length of the tracer streak (m): the same from any point of view.")]
+    public float tracerLength = 2f;
+    [Tooltip("How fast the tracer runs along the bullet's way (m/s): slower than the bullet so the eye can follow it " +
+             "(the hit itself is the bullet's, at once).")]
+    public float tracerSpeed = 150f;
+    [Tooltip("The tracer reaches where the bullet hit at most this long after it (s): far shots are not shown too late.")]
+    public float tracerMaxLag = 0.3f;
+    [Tooltip("How long the tracer stays after the bullet hit / ended, fading out (s).")]
+    public float tracerFadeSeconds = 0.15f;
+
+    private ShotTracer tracer;
+    private Color shotColor;
     public LayerMask weaponLayer;
     private float speed = 0f;
     private float lifeTime = 0f;
@@ -71,6 +94,8 @@ public class Bullet : MonoBehaviour
             return;
         }
 
+        if (tracer != null)
+            tracer.Follow(currentPosition);
         lastPosition = currentPosition;
     }
 
@@ -108,6 +133,33 @@ public class Bullet : MonoBehaviour
         startPosition = transform.position;
         lastPosition = startPosition;
         lifeTimer = 0f;
+
+        ShowHighlight();
+    }
+
+    // =========================
+    // HIGHLIGHT
+    // =========================
+    /// <summary>
+    /// The tracer, in the shooter's side colour: a short streak running along the bullet's way, slower than the
+    /// bullet so it can be seen, then a moment where it hit (bullets are too fast to be seen themselves).
+    /// </summary>
+    private void ShowHighlight()
+    {
+        shotColor = ShotHighlight.ColorFor(Source, ownSideColor, otherSideColor);
+        Material lineMat = highlight ? ShotHighlight.MaterialFor(shotColor, vertexAlpha: true) : null;
+        EndTracer(transform.position); // (a pooled bullet fired again: its last tracer is left to fade)
+        if (lineMat != null)
+            tracer = ShotTracer.Begin(transform.position, rb != null ? rb.linearVelocity : transform.forward, lineMat,
+                tracerLength, tracerSpeed, tracerMaxLag, tracerWidth, tracerMinPixels, tracerFadeSeconds);
+    }
+
+    /// <summary>The bullet hit / ended here: its tracer stays a moment, fading out.</summary>
+    private void EndTracer(Vector3 at)
+    {
+        if (tracer != null)
+            tracer.End(at);
+        tracer = null;
     }
 
     void OnCollisionEnter(Collision collision)
@@ -142,6 +194,7 @@ public class Bullet : MonoBehaviour
         // A piece (or a decoy) bleeds; anything else gets a bullet hole.
         bool hitAPiece = hitObject.GetComponentInParent<ChessPieceFPSController>() != null;
         SpawnImpact(hitAPiece ? bulletFleshPrefab : bulletHolePrefab, hasContact, hitPoint, hitNormal, collision.transform);
+        EndTracer(hitPoint); // the tracer ends right where it hit
 
         Despawn();
     }
@@ -153,7 +206,8 @@ public class Bullet : MonoBehaviour
 
         Vector3 spawnPosition = hitPoint + hitNormal * 0.001f;
         Quaternion spawnRotation = Quaternion.LookRotation(hitNormal);
-        ImpactEffectPool.Spawn(prefab, spawnPosition, spawnRotation, hitTransform, impactLifetime, impactPoolSize);
+        ImpactEffectPool.Spawn(prefab, spawnPosition, spawnRotation, hitTransform, impactLifetime, impactPoolSize,
+            highlight ? shotColor : (Color?)null); // the hole glows in the shot's colour while it splashes
     }
 
     private void Despawn()
@@ -161,6 +215,7 @@ public class Bullet : MonoBehaviour
         if (despawned)
             return; // never back to the pool twice
         despawned = true;
+        EndTracer(transform.position);
         BaseDamage = 0f;
         Source = null;
 

@@ -157,6 +157,17 @@ MonoBehaviour:
   bulletHolePrefab: {fileID: 1915253890863374089, guid: 667a376962851c847b2f3b3fcd010a2b, type: 3}
   bulletFleshPrefab: {fileID: 1000010191825552, guid: 174f83f93bb0da44183ec652d3e08c59, type: 3}
   bulletDamageBonus: 0.01
+  impactLifetime: 20
+  impactPoolSize: 128
+  highlight: 1
+  ownSideColor: {r: 1, g: 0.78431374, b: 0, a: 1}
+  otherSideColor: {r: 1, g: 0.78431374, b: 0, a: 1}
+  tracerWidth: 0.05
+  tracerMinPixels: 1.9
+  tracerLength: 5
+  tracerSpeed: 90
+  tracerMaxLag: 1
+  tracerFadeSeconds: 0.15
   weaponLayer:
     serializedVersion: 2
     m_Bits: 1024

@@ -324,7 +324,7 @@ MonoBehaviour:
   firePointDistance: 2.25
   fireRate: 9.5
   damage: 33
-  range: 55
+  range: 155
   currentFireMode: 1
   allowAuto: 0
   allowBurst: 1
