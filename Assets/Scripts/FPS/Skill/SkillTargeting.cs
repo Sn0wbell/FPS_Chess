@@ -24,6 +24,72 @@ public interface IOutgoingDamageBonus
 /// </summary>
 public static class SkillTargeting
 {
+    /// <summary>
+    /// Landing-style blast (same rule for every skill): share of the base knock a piece takes at this distance,
+    /// measured edge to edge. 1 within fullShare x radius, then linearly down to minShare at the radius; 0 outside.
+    /// </summary>
+    public static float BlastForceShare(float edgeDistance, float radius, float fullShare, float minShare)
+    {
+        if (edgeDistance > radius)
+            return 0f;
+        float full = radius * Mathf.Clamp01(fullShare);
+        if (edgeDistance <= full)
+            return 1f;
+        return Mathf.Lerp(1f, minShare, (edgeDistance - full) / Mathf.Max(1e-4f, radius - full));
+    }
+
+    /// <summary>
+    /// A piece that cannot be knocked this way: right behind it (within checkDistance along the knock's horizontal
+    /// direction) is a wall or terrain too steep to walk. Other pieces do not count (they are knocked along).
+    /// </summary>
+    public static bool CannotBePushed(ChessPieceFPSController piece, Vector3 knock, float checkDistance)
+    {
+        Vector3 dir = new Vector3(knock.x, 0f, knock.z);
+        var cc = piece != null ? piece.GetComponent<CharacterController>() : null;
+        if (cc == null || !cc.enabled || dir.sqrMagnitude < 1e-6f)
+            return false;
+        dir.Normalize();
+
+        Vector3 c = cc.bounds.center;
+        float half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+        int mask = Physics.DefaultRaycastLayers & ~(1 << piece.gameObject.layer);
+        foreach (RaycastHit h in Physics.CapsuleCastAll(c + Vector3.up * half, c - Vector3.up * half, cc.radius * 0.95f, dir,
+                     checkDistance + cc.skinWidth, mask, QueryTriggerInteraction.Ignore))
+        {
+            if (h.collider == null || h.collider.transform.IsChildOf(piece.transform))
+                continue;
+            if (h.collider.GetComponentInParent<ChessPieceFPSController>() != null)
+                continue; // another piece: knocked along, not a wall
+            if (Vector3.Angle(h.normal, Vector3.up) > cc.slopeLimit)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The push-back a charging piece takes when the piece it hits cannot be knocked: share x the knock it gave,
+    /// sideways reversed, upward the same.
+    /// </summary>
+    public static Vector3 BlockedReaction(Vector3 knock, float share) =>
+        new Vector3(-knock.x, knock.y, -knock.z) * share;
+
+    /// <summary>Colliders within <paramref name="gap"/> of this body's surface (edge to edge): its capsule grown by gap.</summary>
+    public static Collider[] OverlapBody(CharacterController cc, float gap, int mask)
+    {
+        Vector3 c = cc.bounds.center;
+        float half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+        return Physics.OverlapCapsule(c + Vector3.up * half, c - Vector3.up * half, cc.radius + Mathf.Max(0f, gap), mask, QueryTriggerInteraction.Ignore);
+    }
+
+    /// <summary>Horizontal gap between two bodies (centre distance minus both radii, never below 0).</summary>
+    public static float EdgeDistanceXZ(Vector3 from, float fromRadius, ChessPieceFPSController other)
+    {
+        Vector3 d = other.transform.position - from;
+        d.y = 0f;
+        var cc = other.GetComponent<CharacterController>();
+        return Mathf.Max(0f, d.magnitude - fromRadius - (cc != null ? cc.radius : 0f));
+    }
+
     /// <summary>Reference mass of a chess piece (kg), to turn a piece's knock-back into momentum for heavier things (rook walls).</summary>
     public const float PieceMass = 80f;
 

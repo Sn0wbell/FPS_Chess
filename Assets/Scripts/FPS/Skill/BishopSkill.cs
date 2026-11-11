@@ -18,7 +18,7 @@ using UnityEngine;
 /// Every piece is hit (and damaged) at most once per use: the first hit ends the pull.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
-public class BishopSkill : ActiveSkill, IMovementOverride
+public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandler
 {
     private enum GrappleMode { PullSelf, PullEnemy, PullWall }
 
@@ -40,7 +40,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     [SerializeField] private LayerMask obstacleMask;
 
     [Header("Impact")]
-    [SerializeField] private float impactRadius = 1f;
+    [Tooltip("A piece is hit (on the way, or a pulled piece reaching the bishop) when the gap between the two bodies is this small or less (edge to edge).")]
+    [SerializeField] private float impactRadius = 0.5f;
     [Tooltip("Damage of a hit: on the way, when a pulled piece arrives and by the landing blast (each piece takes it once per use).")]
     [SerializeField] private float impactDamage = 25f;
     [SerializeField] private float impactImpulseForce = 8f;
@@ -49,9 +50,20 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     [SerializeField] private float arrivalSelfKnockShare = 0.7f;
     [Tooltip("Upward bounce of a hit = this x the impact strength (glancing hits barely bounce).")]
     [SerializeField] private float bounceFactor = 0.35f;
+    [Tooltip("Self pull: a hit piece with a wall / steep terrain this close behind it (along the knock) cannot be knocked: the pull stops there (landing) and the bishop takes a push-back.")]
+    [SerializeField] private float pushCheckDistance = 0.5f;
+    [Tooltip("Push-back taken then: this share of the knock it gave (sideways reversed, upward the same).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float blockedSelfKnockShare = 0.7f;
 
     [Header("Landing")]
     [SerializeField] private float landingRadius = 1.5f;
+    [Tooltip("Pieces this close (share of the radius, edge to edge) take the full knock.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingFullForceShare = 0.5f;
+    [Tooltip("Share of the knock still taken at the very edge of the radius (fades linearly to it from the full zone).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingMinForceShare = 0.5f;
 
     [Header("Sliding")]
     [Tooltip("Hitting the ground or a wall at this angle or more (90 = straight into it) stops the pull; below it the pulled body slides along, slower the steeper the hit.")]
@@ -71,6 +83,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride
     private ChessPieceFPSController hookedEnemyFps;
     private CharacterController hookedEnemyController;
     private bool hookedEnemyHeld; // forced move claimed, movement suppressed, gravity off
+    private bool hookedSwinging;  // knocked by someone else while on the rope: flies, the rope only reels it in
     private GrappleMode mode;
     private bool active;
 
@@ -218,17 +231,19 @@ public class BishopSkill : ActiveSkill, IMovementOverride
                     return;
                 }
 
+                // A rook wall: it falls over sideways towards the bishop while the rope is reeled back in
+                // (neither is pulled to the other).
                 if (mode == GrappleMode.PullWall)
                 {
                     if (hookedWall != null)
                         hookedWall.Topple(transform.position, wallToppleForce);
-                    FinishActive();
+                    isRetracting = true;
                     return;
                 }
 
-                if (mode == GrappleMode.PullEnemy && !HoldHookedPiece())
+                if (mode == GrappleMode.PullEnemy && !HoldHookedPiece(takeOver: true))
                 {
-                    // Already being moved by another skill: the rope slips.
+                    // Could not be held (gone): the rope slips.
                     hasValidTarget = false;
                     isRetracting = true;
                     return;
@@ -290,7 +305,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         Vector3 before = transform.position;
         if (!PullTowards(controller, targetPos, pullSpeed, dt, hookedSurface, out bool arrived, landOnGoal: hookedGround))
         {
-            FinishActive(); // head-on into the ground / a wall: the pull stops
+            // Head-on into the ground / a wall: the pull is forced to stop: landing blast there.
+            ResolveLanding();
+            FinishActive();
             return;
         }
 
@@ -301,13 +318,15 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         }
 
         Vector3 velocity = dt > 0f ? (transform.position - before) / dt : Vector3.zero;
-        HitPiecesOnTheWay(velocity); // pieces in the way are knocked aside; the pull goes on
+        if (HitPiecesOnTheWay(velocity))
+            return; // a piece that cannot be knocked stopped the pull (landing done)
 
-        // Pressed head-on against a piece that cannot be pushed away (e.g. against a wall): stops like on terrain.
+        // Stuck (no progress at all): the pull is forced to stop: landing blast there.
         float expected = pullSpeed * dt;
         stalledFrames = !arrived && expected > 1e-4f && (transform.position - before).magnitude < expected * 0.05f ? stalledFrames + 1 : 0;
         if (stalledFrames >= 3)
         {
+            ResolveLanding();
             FinishActive();
             return;
         }
@@ -334,6 +353,18 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             return;
         }
 
+        // Knocked by someone else while on the rope: it flies (gravity, bounces) and the rope cannot stretch: the part
+        // of its flight away from the bishop is taken out, the rest kept (it swings round); once it is down it is
+        // dragged in straight again.
+        if (hookedSwinging)
+        {
+            if (hookedEnemyFps.IsKnockedBack)
+                KeepRopeTaut();
+            else if (HoldHookedPiece())
+                hookedSwinging = false;
+        }
+
+        Vector3 pieceBefore = piece.position;
         if (!PullTowards(hookedEnemyController, transform.position, ropeShootSpeed, dt, null, out _))
         {
             FinishActive(); // head-on into the ground / a wall: the pull stops
@@ -346,9 +377,33 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             trailLR.SetPosition(1, hookedEnemyController.bounds.center);
         }
 
-        // Reached the bishop: both bounce off like two charges meeting; only the pulled piece is hurt.
-        if (Vector3.Distance(piece.position, transform.position) <= impactRadius + hookedEnemyController.radius)
+        // Reached the bishop (body edge to body edge, from any side, e.g. from above onto its head):
+        // both bounce off like two charges meeting; only the pulled piece is hurt.
+        if (BodyGap(hookedEnemyController, controller) <= impactRadius)
+        {
             ResolvePulledPieceArrival();
+            return;
+        }
+
+        // Stuck short of the bishop (something keeps it from coming any closer): the pull ends.
+        if (hookedSwinging)
+        {
+            stalledFrames = 0; // flying on the rope: its own flight moves it
+            return;
+        }
+        float expected = ropeShootSpeed * dt;
+        stalledFrames = expected > 1e-4f && (piece.position - pieceBefore).magnitude < expected * 0.05f ? stalledFrames + 1 : 0;
+        if (stalledFrames >= 3)
+            FinishActive();
+    }
+
+    /// <summary>Gap between two bodies, surface to surface (0 when touching).</summary>
+    private static float BodyGap(CharacterController a, CharacterController b)
+    {
+        Vector3 onA = SkillTargeting.ClosestPointOnBody(a, b.bounds.center);
+        Vector3 onB = SkillTargeting.ClosestPointOnBody(b, onA);
+        onA = SkillTargeting.ClosestPointOnBody(a, onB);
+        return Vector3.Distance(onA, onB);
     }
 
     protected override void OnForceCancel(in SkillContext ctx) => Cleanup();
@@ -436,13 +491,21 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             return false;
         Collider c = hookedEnemyController != null ? hookedEnemyController : hookedEnemyFps.GetComponent<Collider>();
         Vector3 closest = c != null ? SkillTargeting.ClosestPointOnBody(c, targetPos) : hookedEnemyFps.transform.position;
-        return Vector3.Distance(closest, targetPos) <= impactRadius;
+        return Vector3.Distance(closest, targetPos) <= HookHoldTolerance;
     }
 
-    /// <summary>The pulled piece loses its own leap / dash, cannot move and has no gravity while pulled.</summary>
-    private bool HoldHookedPiece()
+    private const float HookHoldTolerance = 1f; // the piece may have moved this much from the hook point (as before)
+
+    /// <summary>
+    /// The pulled piece loses its own leap / dash, cannot move and has no gravity while pulled. When the rope hooks it
+    /// (<paramref name="takeOver"/>), it is taken from whatever moves it now (the later skill wins: a king's pull lets
+    /// go of it, another bishop's rope snaps, a flight stops).
+    /// </summary>
+    private bool HoldHookedPiece(bool takeOver = false)
     {
-        if (hookedEnemyFps == null || !hookedEnemyFps.TryBeginForcedMove(this))
+        if (hookedEnemyFps == null)
+            return false;
+        if (!(takeOver ? hookedEnemyFps.ClaimForcedMove(this) : hookedEnemyFps.TryBeginForcedMove(this)))
             return false;
 
         hookedEnemyFps.SuppressMovement(this);
@@ -568,36 +631,47 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
     /// <summary>Self pull: pieces met on the way are hit once (billiard). Returns true when the pull ended.</summary>
     /// <summary>
-    /// Self pull: a piece in front of the bishop is knocked away like by a landing at contact (same knock in every
-    /// case) and hurt once per use. The bishop is not pushed: it keeps following its rope (a piece that cannot be
-    /// pushed away, e.g. against a wall, is slid along like terrain).
+    /// Self pull: a piece in front of the bishop is knocked away billiard-style (impactImpulseForce x how head-on the
+    /// hit is, like the rook and the knight) and hurt once per use. The bishop is not pushed: it keeps following its
+    /// rope. A piece that cannot be knocked (a wall right behind it) stops the pull: landing blast there, the bishop
+    /// takes a share of the knock back. Returns true then.
     /// </summary>
-    private void HitPiecesOnTheWay(Vector3 velocity)
+    private bool HitPiecesOnTheWay(Vector3 velocity)
     {
         Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
         if (flat.sqrMagnitude < 1e-6f)
-            return;
+            return false;
 
-        foreach (Collider col in Physics.OverlapSphere(transform.position, impactRadius, enemyMask, QueryTriggerInteraction.Ignore))
+        foreach (Collider col in SkillTargeting.OverlapBody(controller, impactRadius, enemyMask)) // edge to edge
         {
             ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
             if (!SkillTargeting.IsAffectable(fps, otherFps) || hitThisUse.Contains(otherFps))
                 continue;
 
-            Vector3 toPiece = otherFps.transform.position - transform.position;
-            toPiece.y = 0f;
-            if (Vector3.Dot(toPiece, flat) <= 0f)
+            float impact = SkillTargeting.BilliardCollision(transform.position, flat.normalized * impactImpulseForce,
+                otherFps.transform.position, Vector3.zero, bounceFactor, out _, out Vector3 knock);
+            if (impact <= 0f)
                 continue; // not in front of the bishop: not hit
             hitThisUse.Add(otherFps);
 
+            if (SkillTargeting.CannotBePushed(otherFps, knock, pushCheckDistance))
+            {
+                Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
+                ResolveLanding(); // hurt only once: it is already in hitThisUse
+                FinishActive();
+                fps.AddExternalImpulse(SkillTargeting.BlockedReaction(knock, blockedSelfKnockShare), this);
+                return true;
+            }
+
             // Ngắt riêng các skill đang trực tiếp điều khiển chuyển động.
             InterruptMovementSkills(otherFps);
-            otherFps.AddExternalImpulse(ContactKnock(toPiece, flat));
+            otherFps.AddExternalImpulse(knock);
             Damage(otherFps, SkillTargeting.ClosestPointOnBody(col, transform.position), SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, transform.forward));
         }
+        return false;
     }
 
-    /// <summary>The knock a piece gets from the bishop's impacts at contact (same as a landing blast at contact).</summary>
+    /// <summary>The knock of a pulled piece reaching the bishop (always head-on: it comes straight at the bishop).</summary>
     private Vector3 ContactKnock(Vector3 away, Vector3 fallback)
     {
         away.y = 0f;
@@ -630,7 +704,8 @@ public class BishopSkill : ActiveSkill, IMovementOverride
 
     /// <summary>
     /// Self pull arrival: blast around the bishop, measured from the bishop's body to the other body
-    /// (edge to edge): full strength when touching, fading to nothing at landingRadius; damage once per use.
+    /// (edge to edge): full strength within landingFullForceShare of landingRadius, then down to landingMinForceShare
+    /// at landingRadius; damage once per use.
     /// </summary>
     private void ResolveLanding()
     {
@@ -648,13 +723,12 @@ public class BishopSkill : ActiveSkill, IMovementOverride
             float distance = flat.magnitude;
             flat = distance > 1e-3f ? flat / distance : new Vector3(transform.forward.x, 0f, transform.forward.z).normalized;
 
-            var otherCc = otherFps.GetComponent<CharacterController>();
-            float edgeDistance = Mathf.Max(0f, distance - myRadius - (otherCc != null ? otherCc.radius : 0f));
+            float edgeDistance = SkillTargeting.EdgeDistanceXZ(transform.position, myRadius, otherFps);
             if (edgeDistance > landingRadius || Mathf.Abs(otherFps.transform.position.y - transform.position.y) > landingRadius + 2f)
                 continue; // outside the blast
             hitThisLanding.Add(otherFps);
 
-            float strength = impactImpulseForce * (1f - Mathf.Clamp01(edgeDistance / Mathf.Max(0.01f, landingRadius)));
+            float strength = impactImpulseForce * SkillTargeting.BlastForceShare(edgeDistance, landingRadius, landingFullForceShare, landingMinForceShare);
             otherFps.AddExternalImpulse(flat * strength + Vector3.up * (bounceFactor * strength));
 
             if (hitThisUse.Add(otherFps)) // already hit on the way: knocked again, not hurt again
@@ -674,8 +748,43 @@ public class BishopSkill : ActiveSkill, IMovementOverride
         });
     }
 
+    /// <summary>
+    /// The pulled piece is knocked by another source: it flies with the knock (gravity on, movement no longer held)
+    /// but stays on the rope, which keeps reeling it in.
+    /// </summary>
+    public void OnHeldPieceKnocked(ChessPieceFPSController piece)
+    {
+        if (piece == null || piece != hookedEnemyFps || !hookedEnemyHeld)
+            return;
+        hookedEnemyFps.ReleaseMovementSuppression(this);
+        hookedEnemyFps.SetGravityEnabled(this, true);
+        hookedSwinging = true;
+        KeepRopeTaut(); // right away: it never starts flying away from the bishop
+    }
+
+    /// <summary>Another skill takes the pulled piece over (a king's pull, another bishop's rope): the rope snaps, this skill ends.</summary>
+    public void OnHeldPieceTakenOver(ChessPieceFPSController piece)
+    {
+        if (piece != null && piece == hookedEnemyFps)
+            ForceCancel();
+    }
+
+    /// <summary>The rope cannot stretch: the part of the swinging piece's flight away from the bishop is taken out.</summary>
+    private void KeepRopeTaut()
+    {
+        Vector3 rope = transform.position - hookedEnemyFps.transform.position;
+        if (rope.sqrMagnitude < 1e-6f)
+            return;
+        Vector3 inward = rope.normalized;
+        Vector3 v = hookedEnemyFps.KnockVelocity;
+        float outward = -Vector3.Dot(v, inward);
+        if (outward > 0f)
+            hookedEnemyFps.KnockVelocity = v + outward * inward;
+    }
+
     private void ReleaseHookedEnemy()
     {
+        hookedSwinging = false;
         if (hookedEnemyFps == null)
             return;
 

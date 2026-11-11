@@ -2,8 +2,9 @@
 using UnityEngine;
 
 /// <summary>
-/// ROOK — charge. Dashes straight ahead, following the ground like walking (steps, walkable
-/// slopes; off a ledge it keeps its height and falls after the dash). Leaves wall segments
+/// ROOK — charge. Dashes straight ahead in a level line: it climbs steps and walkable slopes
+/// but never goes down (downhill or off a ledge it keeps its height; it and its walls fall once
+/// the dash is over). Leaves wall segments
 /// behind it. Rams pieces in the way: damage + billiard-style knock-back (pushed along the line
 /// of impact, with a small bounce). Smashes through enemy walls it can break; anything else
 /// that is too high stops it. Two charging pieces (Rook/Knight) that meet "clash": both are
@@ -19,8 +20,25 @@ public class RookSkill : ActiveSkill, IMovementOverride
     [SerializeField] private float pushForce = 15f;
     [Tooltip("Upward bounce of a collision = this x the impact strength (glancing hits barely bounce).")]
     [SerializeField] private float bounceFactor = 0.35f;
+    [Tooltip("A hit piece with a wall / steep terrain this close behind it (along the knock) cannot be knocked: the charge stops there (landing) and takes a push-back.")]
+    [SerializeField] private float pushCheckDistance = 0.5f;
+    [Tooltip("Push-back taken then: this share of the knock it gave (sideways reversed, upward the same).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float blockedSelfKnockShare = 0.7f;
+
+    [Header("Stop Blast")]
+    [Tooltip("Stopped by terrain, a wall it cannot break or a piece it cannot knock: pieces within this radius (edge to edge) are knocked (pushForce) and hurt (once per dash). Not when the dash runs its full distance.")]
+    [SerializeField] private float stopBlastRadius = 2.5f;
+    [Tooltip("Pieces this close (share of the radius, edge to edge) take the full knock.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingFullForceShare = 0.5f;
+    [Tooltip("Share of the knock still taken at the very edge of the radius (fades linearly to it from the full zone).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingMinForceShare = 0.5f;
 
     [Header("Collision")]
+    [Tooltip("A piece is rammed when the gap between its body and the rook's is this small or less (edge to edge).")]
+    [SerializeField] private float impactRadius = 0.5f;
     [SerializeField] private float obstacleCheckRadius = 0.5f;
     [SerializeField] private LayerMask obstacleMask;
     [SerializeField] private LayerMask enemyMask;
@@ -43,8 +61,8 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
     // WALL GEOMETRY
     private float segmentLength;
-    private Vector3 currentSegmentHeadPos;
-    private float distanceSinceLastSegment;
+    private Vector3 dashStartPos;   // where the line of walls starts
+    private int segmentSlots;       // wall places used along the line so far (a blocked place counts too)
 
     private readonly HashSet<IDamageable> damagedThisDash = new();
     private readonly List<WallSegment> activeSegments = new();
@@ -110,8 +128,8 @@ public class RookSkill : ActiveSkill, IMovementOverride
         }
 
         traveled = 0f;
-        distanceSinceLastSegment = 0f;
-        currentSegmentHeadPos = controller.transform.position;
+        dashStartPos = controller.transform.position;
+        segmentSlots = 0;
 
         damagedThisDash.Clear();
 
@@ -128,16 +146,19 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         // Blocked: an enemy wall this charge can break is smashed and the dash goes on;
         // anything else (or a wall too strong to break, which still takes the hit) stops it.
+        // A rook wall that stops it (either side) is knocked over, away from the rook.
         if (BlockedAhead(ctx.transform.position, dashDir, step, out RaycastHit blocker) && !TrySmashThrough(blocker))
         {
+            WallSegment hitWall = blocker.collider != null ? blocker.collider.GetComponentInParent<WallSegment>() : null;
+            if (hitWall != null && hitWall.gameObject.activeInHierarchy)
+                hitWall.KnockOver(dashDir);
+            StopBlast(); // forced to stop: the momentum knocks the pieces around (like a landing)
             FinishActive(); // stops the dash; the cooldown starts right away
             return;
         }
 
-        ctx.controller.Move(dashDir * step);
-        FollowGround(step);
+        ctx.controller.Move(dashDir * step); // level: never follows the ground down
         traveled += step;
-        distanceSinceLastSegment += step;
 
         HandlePieceCollision();
         HandleWallSpawn();
@@ -215,8 +236,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
         if (!dashActive)
             return;
 
-        Collider[] hits = Physics.OverlapSphere(
-            controller.transform.position, 1f, enemyMask, QueryTriggerInteraction.Ignore);
+        Collider[] hits = SkillTargeting.OverlapBody(controller, impactRadius, enemyMask); // edge to edge
         int count = hits.Length;
 
         for (int i = 0; i < count; i++)
@@ -267,9 +287,16 @@ public class RookSkill : ActiveSkill, IMovementOverride
                 continue; // behind the charge: not hit
             damagedThisDash.Add(dmg);
 
+            // Against a wall it cannot be knocked: the dash stops here (stop blast; hurt only once, by this hit)
+            // and the rook takes a share of the knock back.
+            bool blocked = SkillTargeting.CannotBePushed(otherFps, knock, pushCheckDistance);
+
             // Knock-back applies to everyone (allies too); damage only to enemies.
-            otherFps.InterruptActiveMovementSkills();
-            otherFps.AddExternalImpulse(knock);
+            if (!blocked)
+            {
+                otherFps.InterruptActiveMovementSkills();
+                otherFps.AddExternalImpulse(knock);
+            }
 
             SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
             {
@@ -279,29 +306,85 @@ public class RookSkill : ActiveSkill, IMovementOverride
                 source = gameObject,
                 type = DamageType.Melee
             });
+
+            if (blocked)
+            {
+                StopBlast();
+                FinishActive();
+                fps.AddExternalImpulse(SkillTargeting.BlockedReaction(knock, blockedSelfKnockShare), this);
+                return;
+            }
         }
     }
 
     // =========================
     // WALL SPAWN
     // =========================
+    /// <summary>
+    /// The charge is forced to stop (terrain, a wall, a piece it cannot knock): pieces around (edge to edge) are
+    /// knocked away from the rook with pushForce, full close by and down to landingMinForceShare at stopBlastRadius
+    /// (same rule as the landings), and hurt once per dash.
+    /// </summary>
+    private void StopBlast()
+    {
+        float myRadius = controller != null ? controller.radius : 0f;
+        Vector3 from = transform.position;
+        var knocked = new HashSet<ChessPieceFPSController>();
+        foreach (Collider col in Physics.OverlapSphere(from, stopBlastRadius + myRadius + 2f, enemyMask, QueryTriggerInteraction.Ignore))
+        {
+            if (col == null || col.GetComponent<WallSegment>() != null)
+                continue;
+            ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
+            if (!SkillTargeting.IsAffectable(fps, otherFps) || knocked.Contains(otherFps))
+                continue;
+
+            float edgeDistance = SkillTargeting.EdgeDistanceXZ(from, myRadius, otherFps);
+            if (edgeDistance > stopBlastRadius || Mathf.Abs(otherFps.transform.position.y - from.y) > stopBlastRadius + 2f)
+                continue; // outside the blast
+            knocked.Add(otherFps);
+
+            Vector3 flat = otherFps.transform.position - from;
+            flat.y = 0f;
+            flat = flat.sqrMagnitude > 1e-6f ? flat.normalized : dashDir;
+            float strength = pushForce * SkillTargeting.BlastForceShare(edgeDistance, stopBlastRadius, landingFullForceShare, landingMinForceShare);
+            otherFps.InterruptActiveMovementSkills();
+            otherFps.AddExternalImpulse(flat * strength + Vector3.up * (bounceFactor * strength));
+
+            IDamageable dmg = otherFps.GetComponent<IDamageable>();
+            if (dmg != null && damagedThisDash.Add(dmg)) // already rammed this dash: knocked again, not hurt again
+                SkillTargeting.TryDealDamage(fps, dmg, new DamageInfo
+                {
+                    amount = impactDamage,
+                    hitPoint = SkillTargeting.ClosestPointOnBody(col, from),
+                    hitDirection = flat,
+                    source = gameObject,
+                    type = DamageType.Melee
+                });
+        }
+    }
+
+    /// <summary>
+    /// Fills the way the rook really covered with walls, end to end (no limit on their number): every place a whole
+    /// wall fits behind the rook gets one; a last bit too short for a whole wall stays empty.
+    /// </summary>
     private void HandleWallSpawn()
     {
-        if (!dashActive)
+        if (!dashActive || controller == null)
             return;
 
-        float required = segmentLength + segmentSpacing;
-        if (distanceSinceLastSegment < required)
-            return;
-
-        Vector3 center = currentSegmentHeadPos + dashDir * (segmentLength * 0.5f);
         // Every wall sits a body-radius behind the rook, so it never spawns inside him
         // (the walls stay end to end; the whole line is just shifted back).
-        float clearance = controller != null ? controller.radius + controller.skinWidth : 0f;
-        SpawnSegmentAt(center - dashDir * clearance);
+        float clearance = controller.radius + controller.skinWidth;
+        float pitch = segmentLength + segmentSpacing;
+        float covered = Vector3.Dot(controller.transform.position - dashStartPos, dashDir); // really travelled along the dash
+        const float tolerance = 0.01f; // rounding: 29.9999 m of a 30 m dash still fits the last wall
 
-        currentSegmentHeadPos = center + dashDir * ((segmentLength * 0.5f) + segmentSpacing);
-        distanceSinceLastSegment = 0f;
+        while (covered + tolerance >= segmentSlots * pitch + segmentLength)
+        {
+            Vector3 center = dashStartPos + dashDir * (segmentSlots * pitch + segmentLength * 0.5f);
+            SpawnSegmentAt(center - dashDir * clearance);
+            segmentSlots++;
+        }
     }
 
     private void SpawnSegmentAt(Vector3 centerPos)
@@ -389,6 +472,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
     {
         if (!dashActive) return;
 
+        HandleWallSpawn(); // the last whole wall that fits, if this frame's step made room for it
         dashActive = false;
         if (fps != null)
             fps.SetGravityEnabled(this, true);
@@ -398,7 +482,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
                 seg.EnableGravity();
 
         traveled = 0f;
-        distanceSinceLastSegment = 0f;
+        segmentSlots = 0;
         damagedThisDash.Clear();
     }
 
@@ -456,27 +540,6 @@ public class RookSkill : ActiveSkill, IMovementOverride
             type = DamageType.Melee
         });
         return breaks;
-    }
-
-    /// <summary>
-    /// Over ground the charge follows it like walking (down steps and walkable slopes; up is
-    /// handled by the controller). With no ground within reach (off a ledge, in the air) it keeps
-    /// its height and falls once the dash is over.
-    /// </summary>
-    private void FollowGround(float step)
-    {
-        if (controller == null)
-            return;
-
-        float reach = controller.stepOffset + step * Mathf.Tan(controller.slopeLimit * Mathf.Deg2Rad);
-        float r = controller.radius * 0.9f;
-        Vector3 feet = new Vector3(transform.position.x, controller.bounds.min.y, transform.position.z);
-
-        if (Physics.SphereCast(feet + Vector3.up * (r + 0.05f), r, Vector3.down, out RaycastHit ground, reach + 0.05f, obstacleMask, QueryTriggerInteraction.Ignore)
-            && Vector3.Angle(ground.normal, Vector3.up) <= controller.slopeLimit)
-        {
-            controller.Move(Vector3.down * ground.distance);
-        }
     }
 
     /// <summary>
@@ -573,7 +636,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         foreach (var seg in copy)
             if (seg != null)
-                seg.ReturnToPool();
+                seg.Break(); // a new dash: the old walls break apart
     }
 }
 

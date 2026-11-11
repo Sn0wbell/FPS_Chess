@@ -4,9 +4,10 @@ using UnityEngine;
 
 /// <summary>
 /// QUEEN — shockwave + grenade barrage, one sequence:
-///   1. Push: a sphere expands; every piece it reaches is knocked away physically (like the
-///      other skills: strength fading with distance, small bounce; pieces collide and slide).
-///      Rook walls are pushed too, by the same momentum, so a heavy wall only rocks or tips.
+///   1. Push: a sphere expands (PushWave, on its own: once cast it is never cut short, even if the
+///      queen dies); every piece it reaches is knocked away physically the moment it touches it
+///      (full force at the centre fading to pushMinForceShare at the edge, small bounce; pieces
+///      collide and slide), even one moved by another skill. Rook walls fall over sideways.
 ///      Effect only: allies are pushed too.
 ///   2. Barrage: grenades mark red zones around up to 3 nearest ENEMIES within range; every
 ///      zone sits inside the arena, dropped onto the first surface below it.
@@ -48,8 +49,10 @@ public class QueenSkill : ActiveSkill
     // =========================
     [Header("Push Settings")]
     public float pushRadius = 8f;
-    [Tooltip("Knock-back right next to the queen; fades to nothing at the edge of the push radius.")]
+    [Tooltip("Knock-back right next to the queen; fades to pushMinForceShare of it at the edge of the push radius.")]
     public float pushForce = 20f;
+    [Tooltip("Share of the push force left at the edge of the push radius.")]
+    [Range(0f, 1f)] public float pushMinForceShare = 0.5f;
     [Tooltip("Upward bounce = this x the knock-back strength.")]
     public float bounceFactor = 0.35f;
     public float pushSphereScaleSpeed = 25f;
@@ -73,8 +76,12 @@ public class QueenSkill : ActiveSkill
     [Header("Visual")]
     public GameObject redZonePrefab;
     public GameObject pushSpherePrefab;
+    [Tooltip("Push sphere alpha when it starts expanding.")]
     [Range(0f, 1f)]
-    public float sphereFadeStartNormalized = 0.55f;
+    public float sphereMaxAlpha = 0.65f;
+    [Tooltip("Push sphere alpha when it reaches the full push radius.")]
+    [Range(0f, 1f)]
+    public float sphereMinAlpha = 0f;
 
     // =========================
     // AI AWARENESS (UNCHANGED)
@@ -112,27 +119,14 @@ public class QueenSkill : ActiveSkill
     private readonly List<RedZone> activeRedZones = new();
     private readonly Queue<RedZone> redZonePool = new();
 
-    private readonly List<DelayedPush> pendingPushes = new();
     private readonly List<ChessPieceFPSController> pushedPieces = new();
     private float waitForLanding;
 
-    private GameObject pushSphereInstance;
-    private readonly List<Material> sphereMaterials = new();
-    private Coroutine sphereRoutine;
+    private PushWave wave; // the shockwave still expanding
     private Coroutine barrageRoutine;
     private GrenadeVolley volley;
     private bool barrageStarted;
     private bool attackLocked;
-
-    // =========================
-    // INTERNAL STRUCT
-    // =========================
-    private struct DelayedPush
-    {
-        public ChessPieceFPSController target; // a piece...
-        public WallSegment wall;               // ...or a rook wall
-        public float delay;
-    }
 
     protected override float GetActiveDuration(in SkillContext ctx) =>
         // Safety cap only: the sequence ends itself via FinishActive().
@@ -154,11 +148,9 @@ public class QueenSkill : ActiveSkill
 
     protected override void TickActive(in SkillContext ctx)
     {
-        HandleDelayedPushes(ctx.deltaTime);
-
         // Không có enemy hợp lệ để push → spawn red zone trực tiếp
-        // (otherwise: once every pushed piece is back on the ground).
-        if (!barrageStarted && pendingPushes.Count == 0 && AllPushedPiecesLanded(ctx.deltaTime))
+        // (otherwise: once the shockwave is over and every pushed piece is back on the ground).
+        if (!barrageStarted && wave == null && AllPushedPiecesLanded(ctx.deltaTime))
             StartBarrage();
     }
 
@@ -181,87 +173,47 @@ public class QueenSkill : ActiveSkill
         LockAttack(false);
         CleanupRedZones();
         AbortAllPushes();
-        DespawnSphere();
     }
 
     // =========================
     // PUSH PHASE
     // =========================
+    /// <summary>
+    /// Something to push (a piece or a rook wall) in the radius: the shockwave starts here and runs on its own
+    /// (PushWave). Nothing in it: no sphere, the barrage comes straight away.
+    /// </summary>
     private void ExecutePushPhase()
     {
         Vector3 center = transform.position;
-        var seenPieces = new HashSet<ChessPieceFPSController>();
-        var seenWalls = new HashSet<WallSegment>();
+        bool any = false;
 
         // Pieces (enemy layer) and rook walls (their collider sits on the Default layer).
         foreach (var hit in Physics.OverlapSphere(center, pushRadius, enemyLayer | obstacleLayer, QueryTriggerInteraction.Ignore))
         {
             ChessPieceFPSController target = SkillTargeting.PieceOf(hit);
-            WallSegment wall = target == null ? hit.GetComponentInParent<WallSegment>() : null;
-
-            if (target != null)
+            if (target != null ? SkillTargeting.IsAffectable(fps, target) : hit.GetComponentInParent<WallSegment>() != null)
             {
-                if (!SkillTargeting.IsAffectable(fps, target) || !seenPieces.Add(target))
-                    continue;
+                any = true;
+                break;
             }
-            else if (wall == null || !seenWalls.Add(wall))
-                continue;
-
-            Vector3 at = target != null ? target.transform.position : wall.transform.position;
-
-            // The sphere reaches farther pieces later.
-            float delay = (Vector3.Distance(center, at) / pushSphereScaleSpeed) * 3.46f;
-            pendingPushes.Add(new DelayedPush { target = target, wall = wall, delay = delay });
         }
+        if (!any)
+            return;
 
-        if (pendingPushes.Count > 0)
-            SpawnSphere();
-    }
-
-    private void HandleDelayedPushes(float dt)
-    {
-        for (int i = pendingPushes.Count - 1; i >= 0; i--)
+        PushWave created = null;
+        created = PushWave.Create(fps, center, new PushWave.Settings
         {
-            var p = pendingPushes[i];
-            p.delay -= dt;
-
-            if (p.delay > 0f)
-            {
-                pendingPushes[i] = p;
-                continue;
-            }
-
-            pendingPushes.RemoveAt(i);
-
-            if (p.target != null)
-                PushPiece(p.target);
-            else if (p.wall != null)
-                PushWall(p.wall);
-        }
-    }
-
-    /// <summary>Knock-back away from the queen at the moment the sphere reaches it (cancels its leap / dash).</summary>
-    private void PushPiece(ChessPieceFPSController target)
-    {
-        // Dead, or already moved by another skill: skip it.
-        if (!SkillTargeting.IsAlive(target) || target.IsUnderForcedMove)
-            return;
-
-        target.AddExternalImpulse(SkillTargeting.RadialKnock(transform.position, target.transform.position, pushRadius, pushForce, bounceFactor));
-        pushedPieces.Add(target);
-    }
-
-    /// <summary>
-    /// A rook wall gets the same momentum a piece would (piece mass x knock-back), so the heavy wall
-    /// moves much less: near the queen it is thrown, at the edge it only rocks or tips over.
-    /// </summary>
-    private void PushWall(WallSegment wall)
-    {
-        if (!wall.gameObject.activeInHierarchy)
-            return;
-
-        Vector3 velocityForAPiece = SkillTargeting.RadialKnock(transform.position, wall.transform.position, pushRadius, pushForce, bounceFactor);
-        wall.Push(velocityForAPiece * SkillTargeting.PieceMass);
+            radius = pushRadius,
+            force = pushForce,
+            minForceShare = pushMinForceShare,
+            bounceFactor = bounceFactor,
+            scaleSpeed = pushSphereScaleSpeed,
+            mask = enemyLayer | obstacleLayer,
+            spherePrefab = pushSpherePrefab,
+            maxAlpha = sphereMaxAlpha,
+            minAlpha = sphereMinAlpha
+        }, p => pushedPieces.Add(p), () => { if (wave == created) wave = null; });
+        wave = created;
     }
 
     private bool AllPushedPiecesLanded(float dt)
@@ -277,7 +229,12 @@ public class QueenSkill : ActiveSkill
 
     private void AbortAllPushes()
     {
-        pendingPushes.Clear();
+        // A shockwave already cast goes on by itself (it is never cut short).
+        if (wave != null)
+        {
+            wave.Detach();
+            wave = null;
+        }
         pushedPieces.Clear();
     }
 
@@ -287,7 +244,6 @@ public class QueenSkill : ActiveSkill
     private void StartBarrage()
     {
         barrageStarted = true;
-        DespawnSphere();
 
         List<Vector3> positions = CalculateGrenadePositions();
         if (positions.Count == 0)
@@ -324,7 +280,8 @@ public class QueenSkill : ActiveSkill
             var rz = GetRedZone();
             if (rz != null)
             {
-                rz.Activate(positions[i], redZoneRadius, untilExplosion); // drawn exactly as big as it hurts
+                rz.HeightRange = heightRange; // drawn exactly as big and as high as it hurts
+                rz.Activate(positions[i], redZoneRadius, untilExplosion);
                 activeRedZones.Add(rz);
                 volley.Add(rz);
             }
@@ -428,72 +385,6 @@ public class QueenSkill : ActiveSkill
             result.Add(pos);
             return true;
         }
-    }
-
-    // =========================
-    // SPHERE VISUAL
-    // =========================
-    private void SpawnSphere()
-    {
-        if (pushSpherePrefab == null)
-            return;
-
-        pushSphereInstance = Instantiate(pushSpherePrefab, transform.position, Quaternion.identity);
-        sphereMaterials.Clear();
-        foreach (var r in pushSphereInstance.GetComponentsInChildren<Renderer>())
-            foreach (var mat in r.materials) // instanced once here, not every frame
-            {
-                mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
-                sphereMaterials.Add(mat);
-            }
-
-        pushSphereInstance.transform.localScale = Vector3.zero;
-        sphereRoutine = StartCoroutine(ExpandSphere());
-    }
-
-    private IEnumerator ExpandSphere()
-    {
-        float currentScale = 0f;
-        float targetScale = pushRadius * 2f;
-
-        while (currentScale < targetScale && pushSphereInstance != null)
-        {
-            currentScale += Time.deltaTime * pushSphereScaleSpeed;
-            float clamped = Mathf.Min(currentScale, targetScale);
-            float alpha = Mathf.Lerp(sphereFadeStartNormalized, 0.0f, clamped / targetScale);
-
-            foreach (var mat in sphereMaterials)
-            {
-                if (mat == null) continue;
-                Color c = mat.color;
-                c.a = alpha;
-                mat.color = c;
-            }
-
-            pushSphereInstance.transform.localScale = Vector3.one * clamped;
-            yield return null;
-        }
-
-        sphereRoutine = null;
-        DespawnSphere();
-    }
-
-    private void DespawnSphere()
-    {
-        if (sphereRoutine != null)
-        {
-            StopCoroutine(sphereRoutine);
-            sphereRoutine = null;
-        }
-
-        foreach (var mat in sphereMaterials)
-            if (mat != null)
-                Destroy(mat);
-        sphereMaterials.Clear();
-
-        if (pushSphereInstance)
-            Destroy(pushSphereInstance);
-        pushSphereInstance = null;
     }
 
     // =========================

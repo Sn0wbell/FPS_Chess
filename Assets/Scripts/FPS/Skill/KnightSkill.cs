@@ -30,9 +30,23 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     [SerializeField] private float impulseForce = 6f;
     [Tooltip("Upward bounce of a hit = this x the impact strength (glancing hits barely bounce).")]
     [SerializeField] private float bounceFactor = 0.35f;
+    [Tooltip("A piece is hit in the air when the gap between its body and the knight's is this small or less (edge to edge).")]
+    [SerializeField] private float impactRadius = 0.5f;
+    [Tooltip("A hit piece with a wall / steep terrain this close behind it (along the knock) cannot be knocked: the charge stops there (landing) and takes a push-back.")]
+    [SerializeField] private float pushCheckDistance = 0.5f;
+    [Tooltip("Push-back taken then: this share of the knock it gave (sideways reversed, upward the same).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float blockedSelfKnockShare = 0.7f;
 
     [Header("Landing AoE")]
+    [Tooltip("Blast radius, measured from the knight's body to the other body (edge to edge).")]
     [SerializeField] private float landingRadius = 2.5f;
+    [Tooltip("Pieces this close (share of the radius, edge to edge) take the full knock.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingFullForceShare = 0.5f;
+    [Tooltip("Share of the knock still taken at the very edge of the radius (fades linearly to it from the full zone).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float landingMinForceShare = 0.5f;
 
     [Header("Landing Bonus")]
     [Tooltip("+30% damage on the first shot after landing.")]
@@ -54,6 +68,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     private float leapEndU;
     private bool hasPredictedEnd;   // a surface was found on the arc
     private bool predictedEndIsWall; // ...and it is an obstacle, not ground
+    private Collider predictedEndCollider; // what the predicted end touches
     private float elapsed;
     private bool leapActive;
     private bool freeFalling;      // past the arc (no ground found on it): normal gravity until it lands
@@ -134,6 +149,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
                 leapEndU = u + (nextU - u) * Mathf.Clamp01(hit.distance / dist);
                 hasPredictedEnd = true;
                 predictedEndIsWall = !IsWalkable(hit.normal);
+                predictedEndCollider = hit.collider;
                 return;
             }
 
@@ -147,8 +163,9 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     // =========================
     protected override void OnEnterActive(in SkillContext ctx)
     {
-        // A knight cannot leap in mid-air: nothing happens, no cooldown.
-        if (!StandingOnGround())
+        // A knight cannot leap in mid-air: nothing happens, no cooldown. Standing = what a normal jump needs
+        // (any walkable surface the piece stands on), or walkable ground found right under the feet.
+        if (!(fps != null && fps.IsOnWalkableGround) && !StandingOnGround())
         {
             AbortActivation();
             return;
@@ -212,9 +229,10 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             if (!leapActive)
                 return; // clash / knocked: the skill is already over
 
-            // Face into an obstacle (wall, ceiling): the leap fails.
-            if ((flags & (CollisionFlags.Sides | CollisionFlags.Above)) != 0 && HitsObstacle(step))
+            // Face into an obstacle (wall, ceiling): the leap is forced to stop (a rook wall is knocked over).
+            if ((flags & (CollisionFlags.Sides | CollisionFlags.Above)) != 0 && HitsObstacle(step, out Collider obstacle))
             {
+                KnockOverRookWall(obstacle);
                 FailLeap();
                 return;
             }
@@ -232,6 +250,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         {
             if (predictedEndIsWall)
             {
+                KnockOverRookWall(predictedEndCollider);
                 FailLeap();
                 return;
             }
@@ -270,10 +289,13 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
             fps.SetGravityEnabled(this, true);
     }
 
-    /// <summary>Failed leap (faced an obstacle): gravity back, no landing blast, no bonus; cooldown starts.</summary>
+    /// <summary>
+    /// Leap forced to stop (faced a wall / ceiling, or a piece that cannot be knocked): it ends right there with its
+    /// landing blast and the shot bonus, like any leap; then the knight falls; cooldown starts.
+    /// </summary>
     private void FailLeap()
     {
-        CleanupLeap();
+        EndLeap();
         FinishActive();
     }
 
@@ -298,15 +320,27 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
     }
 
     /// <summary>The blocked move ran into something solid that is not walkable ground (a wall, a ceiling).</summary>
-    private bool HitsObstacle(Vector3 step)
+    private bool HitsObstacle(Vector3 step, out Collider obstacle)
     {
+        obstacle = null;
         Vector3 dir = step;
         if (dir.sqrMagnitude < 1e-8f)
             return false;
         dir.Normalize();
-        return Physics.SphereCast(transform.position + controller.center, controller.radius * 0.95f, dir, out RaycastHit hit,
+        bool blocked = Physics.SphereCast(transform.position + controller.center, controller.radius * 0.95f, dir, out RaycastHit hit,
                    step.magnitude + 0.1f, solidMask, QueryTriggerInteraction.Ignore)
                && !IsWalkable(hit.normal);
+        if (blocked)
+            obstacle = hit.collider;
+        return blocked;
+    }
+
+    /// <summary>The leap ran into a rook wall (any side): it falls over, away from the knight.</summary>
+    private void KnockOverRookWall(Collider obstacle)
+    {
+        WallSegment wall = obstacle != null ? obstacle.GetComponentInParent<WallSegment>() : null;
+        if (wall != null)
+            wall.KnockOver(leapForward);
     }
 
     // =========================
@@ -380,9 +414,8 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         Vector3 bottom = new Vector3(transform.position.x, controller.bounds.min.y + radius, transform.position.z);
         Vector3 top = new Vector3(transform.position.x, controller.bounds.max.y - radius, transform.position.z);
 
-        // Slightly larger than the body: controllers stop at contact and never overlap,
-        // so touching another piece must count as a hit.
-        float contactRadius = radius + controller.skinWidth + 0.05f;
+        // The body grown by impactRadius (edge to edge): controllers stop at contact and never overlap.
+        float contactRadius = radius + impactRadius;
         Collider[] hits = Physics.OverlapCapsule(bottom, top, contactRadius, enemyMask, QueryTriggerInteraction.Ignore);
         int count = hits.Length;
 
@@ -425,8 +458,14 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
                 continue; // behind the leap: not hit
             hitPieces.Add(otherFps);
 
-            otherFps.InterruptActiveMovementSkills();
-            otherFps.AddExternalImpulse(knock);
+            // Against a wall it cannot be knocked: the leap stops here (landing blast; hurt only once, by this hit)
+            // and the knight takes a share of the knock back.
+            bool blocked = SkillTargeting.CannotBePushed(otherFps, knock, pushCheckDistance);
+            if (!blocked)
+            {
+                otherFps.InterruptActiveMovementSkills();
+                otherFps.AddExternalImpulse(knock);
+            }
 
             damagedPieces.Add(otherFps);
             SkillTargeting.TryDealDamage(fps, otherFps.GetComponent<IDamageable>(), new DamageInfo
@@ -437,12 +476,20 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
                 source = gameObject,
                 type = DamageType.Melee
             });
+
+            if (blocked)
+            {
+                FailLeap();
+                fps.AddExternalImpulse(SkillTargeting.BlockedReaction(knock, blockedSelfKnockShare), this);
+                return;
+            }
         }
     }
 
     private void PerformLandingAoE()
     {
-        Collider[] hits = Physics.OverlapSphere(transform.position, landingRadius, enemyMask, QueryTriggerInteraction.Ignore);
+        float myRadius = controller != null ? controller.radius : 0f;
+        Collider[] hits = Physics.OverlapSphere(transform.position, landingRadius + myRadius + 2f, enemyMask, QueryTriggerInteraction.Ignore);
         int count = hits.Length;
         var hitThisLanding = new HashSet<ChessPieceFPSController>();
 
@@ -450,18 +497,22 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         {
             Collider col = hits[i];
             ChessPieceFPSController otherFps = SkillTargeting.PieceOf(col);
-            if (!SkillTargeting.IsAffectable(fps, otherFps) || !hitThisLanding.Add(otherFps))
+            if (!SkillTargeting.IsAffectable(fps, otherFps) || hitThisLanding.Contains(otherFps))
                 continue;
+
+            // Edge to edge (like the bishop's landing).
+            float edgeDistance = SkillTargeting.EdgeDistanceXZ(transform.position, myRadius, otherFps);
+            if (edgeDistance > landingRadius || Mathf.Abs(otherFps.transform.position.y - transform.position.y) > landingRadius + 2f)
+                continue; // outside the blast
+            hitThisLanding.Add(otherFps);
 
             Vector3 away = SkillTargeting.TravelDirection(transform.position, otherFps.transform.position, leapForward);
             Vector3 flat = new Vector3(away.x, 0f, away.z);
             if (flat.sqrMagnitude < 1e-6f) flat = leapForward;
             flat.Normalize();
 
-            // Blast from the knight: strongest next to it, fading to nothing at the edge; small bounce.
-            float distance = new Vector2(otherFps.transform.position.x - transform.position.x,
-                                         otherFps.transform.position.z - transform.position.z).magnitude;
-            float strength = impulseForce * (1f - Mathf.Clamp01(distance / Mathf.Max(0.01f, landingRadius)));
+            // Blast from the knight: full knock close by, down to landingMinForceShare at the edge; small bounce.
+            float strength = impulseForce * SkillTargeting.BlastForceShare(edgeDistance, landingRadius, landingFullForceShare, landingMinForceShare);
             otherFps.AddExternalImpulse(flat * strength + Vector3.up * (bounceFactor * strength));
 
             // Damage once per leap: a piece already hit in the air is only knocked.

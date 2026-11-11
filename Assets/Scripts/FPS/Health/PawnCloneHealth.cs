@@ -86,7 +86,7 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         timer += Time.deltaTime;
         if (timer >= lifetime)
         {
-            Die(killedBy: null, shatter: false); // its time is up: it just disappears (not a death)
+            Die(killedBy: null, shatter: true); // its time is up: it breaks apart too (not a kill: nobody revealed)
             return;
         }
 
@@ -134,6 +134,9 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
         if (pool != null) pool.Return(this);
         else gameObject.SetActive(false);
     }
+
+    /// <summary>Removed by its pawn (skill over / used again): breaks apart like when its time is up.</summary>
+    public void Vanish() => Die(killedBy: null, shatter: true);
 
     public void ForceDespawn()
     {

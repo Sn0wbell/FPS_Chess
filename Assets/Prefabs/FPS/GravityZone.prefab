@@ -51,5 +51,5 @@ MonoBehaviour:
   cageColor: {r: 1, g: 0.4509804, b: 0, a: 0.7647059}
   overlayType: 1
   pulseSpeed: 5
-  pulseMinAlpha: 0.15
-  pulseMaxAlpha: 0.45
+  pulseMinAlpha: 0.35
+  pulseMaxAlpha: 0.75

@@ -1546,9 +1546,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerPiece: {fileID: 0}
   whitePrefab:
-    prefab: {fileID: 4825535682319018290, guid: 2c6a2036720c69943937e0da564036bf, type: 3}
+    prefab: {fileID: 8390024542750132940, guid: 6cf1659dc7c525f4a96058622f6fad1a, type: 3}
     count: 1
-    weapon: {fileID: 1044822020932705834, guid: 710c913b34a924544924df22a0cffce0, type: 3}
+    weapon: {fileID: 2510807819609897748, guid: bf2950fbe8b8f8a4ea2be94800cc7506, type: 3}
   blackPrefabs:
   - prefab: {fileID: 3185422659142429491, guid: a23af1189d2a23649a1bf61ac79cd701, type: 3}
     count: 1

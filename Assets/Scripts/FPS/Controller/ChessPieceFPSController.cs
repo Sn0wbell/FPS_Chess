@@ -75,9 +75,19 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     /// <summary>Knock-back bounces (used to predict where a thrown piece comes to rest).</summary>
     public float KnockbackBounciness => knockbackBounciness;
     public float MinBounceSpeed => minBounceSpeed;
+    public float GroundBounciness => groundBounciness;
+    public float GroundBounceFriction => groundBounceFriction;
+    public int MaxGroundBounces => maxGroundBounces;
 
     private float verticalVelocity;
     private bool isGrounded;
+    private bool onSteepGround;  // touching only ground steeper than maxStandAngle (a cliff, a trunk, a ledge edge)
+    private Vector3 steepNormal;
+    // Contacts the CharacterController reported under the body during this frame's moves (what makes it "grounded").
+    private bool supportContact;
+    private Vector3 groundNormal = Vector3.up;
+    private float supportAngle = 180f;
+    private Vector3 supportNormal = Vector3.up;
 
     // Gravity is off while ANY owner (a skill) disables it: overlapping skills never fight over one bool.
     private readonly HashSet<object> gravityDisablers = new HashSet<object>();
@@ -101,11 +111,25 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     [SerializeField] private float knockbackGroundFriction = 8f;
     [Tooltip("A sliding knock-back ends below this speed (m/s).")]
     [SerializeField] private float knockbackStopSpeed = 0.5f;
-    [Tooltip("A knocked piece bounces off walls and the ground: share of the speed into the surface it keeps (0 = no bounce).")]
+    [Tooltip("Steepest surface a piece can stand on (degrees). Resting only on steeper ones (a trunk, a cliff, a sharp edge) it slides off and cannot jump or leap from there. Walking up slopes still follows the CharacterController's slope limit.")]
+    [Range(0f, 90f)]
+    [SerializeField] private float maxStandAngle = 75f;
+    [Tooltip("A knocked piece bounces off walls (steeper than the slope limit): share of the speed into the wall it keeps (0 = no bounce).")]
     [Range(0f, 1f)]
     [SerializeField] private float knockbackBounciness = 0.5f;
     [Tooltip("It only bounces off the ground when it hits it at least this fast (m/s); slower, it lands.")]
     [SerializeField] private float minBounceSpeed = 3f;
+    [Tooltip("Bounce off the ground (walkable slope): share of the falling speed it keeps (0 = never bounces off the ground).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float groundBounciness = 0.3f;
+    [Tooltip("Share of its speed along the ground it keeps at each ground bounce (1 = no friction).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float groundBounceFriction = 0.5f;
+    [Tooltip("Ground bounces per knock at most; after that it lands.")]
+    [SerializeField] private int maxGroundBounces = 2;
+    [Tooltip("Bounce off another piece's body (like off a wall; the other piece is not moved): share of the speed into it it keeps. Its head (flat) counts as ground.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float pieceBounciness = 0.5f;
 
     // =========================
     // MOUSE LOOK
@@ -150,6 +174,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     private WeaponController currentWeapon;
     private GunController currentGun;
     private GameObject weaponObject;
+    private GameObject boundWeaponSource; // the weapon (prefab) this piece was given: its pawn clones carry the same
     private BoxCollider weaponBoxCollider;
     private float weaponBlockDelayTime = 0f;
     private float weaponBlockCheckDistance;
@@ -172,6 +197,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
     private readonly Dictionary<object, Vector2> overrides
         = new Dictionary<object, Vector2>();
+    private readonly Dictionary<object, float> knockOverrides = new Dictionary<object, float>(); // knock-back multipliers
 
     // =========================
     // SKILL
@@ -337,7 +363,15 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
             HandleMovement(readInput: !IsDead && canMove && IsPlayerControlled && !IsBlockedBySkill(SkillBlockMask.Movement));
 
         if (!canMove && !canAct)
+        {
+            // The weapon still sits in the hands (and is lowered against a wall) without control: AI pieces, pawn clones.
+            if (!bodyBroken)
+            {
+                HandleWeaponBlock();
+                UpdateWeaponSystemPosition();
+            }
             return;
+        }
 
         // A dead piece takes no input at all (no skills, no looking around, no shooting).
         if (canAct && IsPlayerControlled && !IsActionLocked && !IsDead)
@@ -434,15 +468,18 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     }
 
     /// <summary>
-    /// Takes this piece over whatever moves it now: the skill currently moving it is cancelled
-    /// (it releases what it held), any flight in progress stops, then <paramref name="owner"/> claims it.
+    /// Takes this piece over whatever moves it now (the later skill wins): the skill holding it lets go of it
+    /// (a king's pull releases just this piece, a bishop's rope snaps; any other skill is cancelled),
+    /// any flight in progress stops, then <paramref name="owner"/> claims it.
     /// </summary>
     public bool ClaimForcedMove(object owner)
     {
         if (owner == null) return false;
         if (forcedMoveOwner != null && !ReferenceEquals(forcedMoveOwner, owner))
         {
-            if (forcedMoveOwner is ActiveSkill holder)
+            if (forcedMoveOwner is IHeldPieceKnockHandler handler)
+                handler.OnHeldPieceTakenOver(this);
+            else if (forcedMoveOwner is ActiveSkill holder)
                 holder.ForceCancel();
             forcedMoveOwner = null;
         }
@@ -510,30 +547,43 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     /// <summary>
     /// Knock-back. A piece that is knocked loses its own leap / dash / grapple first
     /// (one mover at a time); the new hit replaces any flight in progress.
+    /// Knock multipliers (e.g. a king's gravity zone) scale it, except the one of the source itself; a skill
+    /// holding it (rope, pull) is then told, with the flight already set.
     /// </summary>
-    public void AddExternalImpulse(Vector3 impulse)
+    public void AddExternalImpulse(Vector3 impulse, object source = null)
     {
+        foreach (var kv in knockOverrides)
+            if (!ReferenceEquals(kv.Key, source))
+                impulse *= kv.Value;
+
         InterruptActiveMovementSkills();
         scatterVelocityOwner = impulse;
         scatting = true;
         scatterAirborne = false;
+        groundBounces = 0;
+
+        if (forcedMoveOwner is IHeldPieceKnockHandler holder && !ReferenceEquals(holder, source))
+            holder.OnHeldPieceKnocked(this);
     }
+
+    private int groundBounces; // ground bounces of the current knock
 
     /// <summary>
     /// A knocked piece about to hit a wall (or the ground fast enough, while flying) bounces off it like a real body:
     /// moves up to the surface, then v' = v - (1 + e)(v.n)n (the part into the surface is reversed and scaled by e,
-    /// the part along it is kept), so every bounce is weaker. Other pieces are not bounced off.
+    /// the part along it is kept), so every bounce is weaker. Another piece is bounced off like a wall (pieceBounciness; its flat head counts as ground); it is not moved.
     /// </summary>
     private bool TryBounce(Vector3 step)
     {
         float distance = step.magnitude;
-        if (knockbackBounciness <= 0f || distance < 1e-5f || controller == null)
+        if (distance < 1e-5f || controller == null)
             return false;
 
         Vector3 center = controller.bounds.center;
         float half = Mathf.Max(0f, controller.height * 0.5f - controller.radius);
-        int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+        int mask = Physics.DefaultRaycastLayers;
         // Nearest surface ahead that is not part of this piece (its own weapon, overlay copies...).
+        // Other pieces count too (a dead one's body is switched off: not hit).
         RaycastHit hit = default;
         bool found = false;
         foreach (RaycastHit h in Physics.CapsuleCastAll(center + Vector3.up * half, center - Vector3.up * half, controller.radius * 0.95f,
@@ -555,18 +605,98 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         if (into >= 0f)
             return false;
 
+        // Ground = a walkable slope (the same limit the piece walks up), anything steeper is a wall.
         bool ground = Vector3.Angle(n, Vector3.up) <= controller.slopeLimit;
-        if (ground && (!scatterAirborne || -into < minBounceSpeed))
-            return false; // sliding along it, or too slow: lands as usual
+        bool otherPiece = hit.collider.GetComponentInParent<ChessPieceFPSController>() != null;
+        float e = ground ? groundBounciness : otherPiece ? pieceBounciness : knockbackBounciness;
+        if (e <= 0f)
+            return false;
+        if (ground && (!scatterAirborne || -into < minBounceSpeed || groundBounces >= maxGroundBounces))
+            return false; // sliding along it, too slow or bounced enough: lands as usual
 
         controller.Move(step / distance * Mathf.Max(0f, hit.distance - controller.skinWidth));
-        scatterVelocityOwner -= (1f + knockbackBounciness) * into * n;
+        Vector3 normalPart = into * n;
+        Vector3 alongPart = scatterVelocityOwner - normalPart;
+        if (ground)
+        {
+            alongPart *= groundBounceFriction; // friction: it does not skid far along the ground
+            groundBounces++;
+        }
+        scatterVelocityOwner = alongPart - e * normalPart;
         scatterAirborne = true;
         return true;
     }
 
     /// <summary>Flying / sliding from a knock-back right now.</summary>
     public bool IsKnockedBack => scatting;
+
+    /// <summary>Standing (what a jump needs): not in the air, not on a surface steeper than maxStandAngle.</summary>
+    public bool IsOnWalkableGround => isGrounded;
+
+
+    /// <summary>Contacts under the body (lower half-sphere) while moving: the flattest one is what it stands on.</summary>
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if (controller == null || hit.collider == null || hit.collider.transform.IsChildOf(transform))
+            return;
+        Vector3 lowerSphere = controller.bounds.center - Vector3.up * Mathf.Max(0f, controller.height * 0.5f - controller.radius);
+        if (hit.point.y > lowerSphere.y)
+            return; // beside or above: not holding it up
+        float angle = Vector3.Angle(hit.normal, Vector3.up);
+        supportContact = true;
+        if (angle < supportAngle)
+        {
+            supportAngle = angle;
+            supportNormal = hit.normal;
+        }
+    }
+
+    /// <summary>Something no steeper than maxStandAngle right under the feet (other pieces do not count).</summary>
+    private bool StandableGroundUnderFeet()
+    {
+        float r = controller.radius * 0.95f;
+        Vector3 bottom = controller.bounds.center - Vector3.up * Mathf.Max(0f, controller.height * 0.5f - controller.radius);
+        int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+        foreach (RaycastHit h in Physics.SphereCastAll(bottom + Vector3.up * 0.05f, r, Vector3.down, controller.skinWidth + 0.15f, mask, QueryTriggerInteraction.Ignore))
+            if (h.collider != null && !h.collider.transform.IsChildOf(transform) && Vector3.Angle(h.normal, Vector3.up) <= maxStandAngle)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Everything right under the feet is steeper than maxStandAngle (nothing to stand on among them).
+    /// Other pieces do not count (standing on a piece's head is standing).
+    /// </summary>
+    private bool SteepGroundUnderFeet(out Vector3 normal)
+    {
+        normal = Vector3.up;
+        float r = controller.radius * 0.95f;
+        Vector3 bottom = controller.bounds.center - Vector3.up * Mathf.Max(0f, controller.height * 0.5f - controller.radius);
+        int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+        bool steep = false;
+        float nearest = float.PositiveInfinity;
+        foreach (RaycastHit h in Physics.SphereCastAll(bottom + Vector3.up * 0.05f, r, Vector3.down, controller.skinWidth + 0.15f, mask, QueryTriggerInteraction.Ignore))
+        {
+            if (h.collider == null || h.collider.transform.IsChildOf(transform))
+                continue;
+            if (Vector3.Angle(h.normal, Vector3.up) <= maxStandAngle)
+                return false; // something to stand on: standing
+            if (h.distance < nearest)
+            {
+                nearest = h.distance;
+                normal = h.normal;
+                steep = true;
+            }
+        }
+        return steep;
+    }
+
+    /// <summary>Velocity of the knock-back flight in progress (a rope holding the piece constrains it).</summary>
+    public Vector3 KnockVelocity
+    {
+        get => scatterVelocityOwner;
+        set { if (scatting) scatterVelocityOwner = value; }
+    }
 
     public void ApplyExternalVerticalVelocity(float velocity)
     {
@@ -626,6 +756,21 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         }
     }
 
+    /// <summary>The weapon (prefab) last given with BindWeapon.</summary>
+    public GameObject BoundWeaponPrefab => boundWeaponSource;
+
+    public Vector3 WeaponHolderOffset => weaponHolderOffset;
+
+    /// <summary>
+    /// Gives a piece without a camera point (a pawn clone) an aim point: the weapon, its attack point and the
+    /// weapon block then work like on a real piece (an AI turns the aim point to look up / down).
+    /// </summary>
+    public void UseAimPoint(Transform aim, Vector3 holderOffset)
+    {
+        cameraPoint = aim;
+        weaponHolderOffset = holderOffset;
+    }
+
     public void BindWeapon(GameObject weapon, RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
         if (!weapon) return;
@@ -635,6 +780,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
             weaponHolder = new GameObject("WeaponHolder").transform;
             weaponHolder.SetParent(cameraPoint != null ? cameraPoint : transform, false);
         }
+        boundWeaponSource = weapon;
         weaponObject = Instantiate(weapon, weaponHolder);
         weaponObject.SetActive(true);
         if (weaponObject.TryGetComponent(out Rigidbody weaponBody))
@@ -1016,17 +1162,24 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     // =========================
     // MOVEMENT OVERRIDE
     // =========================
-    /// <summary>Speed/jump multipliers keyed by owner (a skill instance or a source enum).</summary>
-    public void OverrideMovement(object owner, float moveMul, float jumpMul)
+    /// <summary>
+    /// Speed/jump multipliers keyed by owner (a skill instance or a source enum); knockMul scales the knock-backs
+    /// this piece takes from any other source while it lasts.
+    /// </summary>
+    public void OverrideMovement(object owner, float moveMul, float jumpMul, float knockMul = 1f)
     {
         if (owner == null) return;
         overrides[owner] = new Vector2(Mathf.Clamp01(moveMul), Mathf.Clamp01(jumpMul));
+        if (knockMul < 1f) knockOverrides[owner] = Mathf.Clamp01(knockMul);
+        else knockOverrides.Remove(owner);
         RecalculateOverrides();
     }
 
     public void ClearOverrideMovement(object owner)
     {
-        if (owner != null && overrides.Remove(owner))
+        if (owner == null) return;
+        knockOverrides.Remove(owner);
+        if (overrides.Remove(owner))
             RecalculateOverrides();
     }
 
@@ -1050,6 +1203,25 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     void HandleMovement(bool readInput)
     {
         isGrounded = controller.isGrounded;
+        // Resting only on something steeper than maxStandAngle (a near-vertical trunk, a rock's edge): not
+        // standing: no walking, jumping or leaping from there; it slides down / off it.
+        // What it rests on: the contacts the controller reported (exact, also on edges); none reported (e.g. standing
+        // on another piece): a look right under the feet.
+        if (supportContact)
+        {
+            // Only steep when nothing to stand on is right under the feet either (pressed against a trunk's foot,
+            // the contacts alternate between the trunk and the ground: that is standing, not sliding).
+            onSteepGround = isGrounded && supportAngle > maxStandAngle && !StandableGroundUnderFeet();
+            steepNormal = supportNormal;
+        }
+        else
+            onSteepGround = isGrounded && SteepGroundUnderFeet(out steepNormal);
+        // The ground it walks on (for walking down slopes along them).
+        groundNormal = isGrounded && supportContact && supportAngle <= maxStandAngle ? supportNormal : Vector3.up;
+        supportContact = false;
+        supportAngle = 180f;
+        if (onSteepGround)
+            isGrounded = false;
 
         if (isGrounded && verticalVelocity <= 0f)
         {
@@ -1127,7 +1299,19 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         else
         {
             if (isJumping) moveDirection = jumpMoveDirection;
-            controller.Move((moveDirection * speed + Vector3.up * verticalVelocity) * Time.deltaTime);
+            Vector3 walk = moveDirection * speed;
+            // Walking down a slope: along it (same speed), so it does not step off into the air every frame
+            // (which made it stutter and lose its speed). Uphill and on flat ground: unchanged.
+            if (isGrounded && !isJumping && walk.sqrMagnitude > 1e-6f)
+            {
+                Vector3 along = Vector3.ProjectOnPlane(walk, groundNormal);
+                if (along.y < 0f && along.sqrMagnitude > 1e-6f)
+                    walk = along.normalized * walk.magnitude;
+            }
+            Vector3 velocity = walk + Vector3.up * verticalVelocity;
+            if (onSteepGround && verticalVelocity < 0f)
+                velocity = Vector3.ProjectOnPlane(velocity, steepNormal); // slides down along it (and off an edge)
+            controller.Move(velocity * Time.deltaTime);
         }
     }
 

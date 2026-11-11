@@ -25,8 +25,39 @@ Transform:
   m_GameObject: {fileID: 1035018836095344188}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: 1.098095e-22, z: 5.024296e-15, w: 1}
-  m_LocalPosition: {x: 0, y: 2.35, z: 0.4}
+  m_LocalPosition: {x: 0, y: 2.595, z: 0.277}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7717010435417171874}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &3587920772622006732
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8466442674338142623}
+  m_Layer: 6
+  m_Name: WeaponBlockedPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8466442674338142623
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3587920772622006732}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.36632985, y: -0.53997797, z: 0.28109473, w: 0.70371306}
+  m_LocalPosition: {x: 0.49, y: 1.93, z: 0.41}
+  m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7717010435417171874}
@@ -121,6 +152,68 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &5939987221475843115
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1533462584046339685}
+  m_Layer: 6
+  m_Name: AttackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1533462584046339685
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5939987221475843115}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7717010435417171874}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6646717194770674106
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1046161189045044692}
+  m_Layer: 6
+  m_Name: WeaponHolder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1046161189045044692
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6646717194770674106}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7717010435417171874}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8390024542750132940
 GameObject:
   m_ObjectHideFlags: 0
@@ -156,6 +249,9 @@ Transform:
   m_Children:
   - {fileID: 4495482352013189604}
   - {fileID: 5842467594253573517}
+  - {fileID: 1533462584046339685}
+  - {fileID: 1046161189045044692}
+  - {fileID: 8466442674338142623}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &1866422598581227807
@@ -202,18 +298,25 @@ MonoBehaviour:
   gravity: -39.81
   knockbackGroundFriction: 8
   knockbackStopSpeed: 0.5
+  maxStandAngle: 75
+  knockbackBounciness: 0.5
+  minBounceSpeed: 3
+  groundBounciness: 0.3
+  groundBounceFriction: 0.5
+  maxGroundBounces: 2
+  pieceBounciness: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  recoilSequenceInputEpsilon: 0.01
-  attackPoint: {fileID: 0}
-  weaponHolder: {fileID: 0}
-  weaponBlockedPosition: {fileID: 0}
-  weaponHolderOffset: {x: 0, y: 0, z: 0}
+  recoilSequenceInputEpsilon: 0.15
+  attackPoint: {fileID: 1533462584046339685}
+  weaponHolder: {fileID: 1046161189045044692}
+  weaponBlockedPosition: {fileID: 8466442674338142623}
+  weaponHolderOffset: {x: 0.31, y: -0.2886, z: -0.1}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
-  weaponAdjustSpeed: 5
+  weaponAdjustSpeed: 15
   boundSkills: []
 --- !u!114 &1106313762543319196
 MonoBehaviour:
@@ -277,13 +380,14 @@ MonoBehaviour:
   redZoneWarningTime: 3
   grenadeCount: 15
   redZoneRadius: 3
-  targetRange: 40
+  targetRange: 150
   grenadeDropHeight: 3
   grenadeMaxDrop: 30
-  pushRadius: 12
-  pushForce: 20
-  bounceFactor: 0.35
-  pushSphereScaleSpeed: 35
+  pushRadius: 15
+  pushForce: 25
+  pushMinForceShare: 0.5
+  bounceFactor: 0.65
+  pushSphereScaleSpeed: 25
   enemyLayer:
     serializedVersion: 2
     m_Bits: 64
@@ -317,7 +421,8 @@ MonoBehaviour:
   maxDamage: 50
   minDamage: 10
   heightRange: 4
-  explosionForce: 10
+  explosionForce: 16.5
   redZonePrefab: {fileID: 2992163428134208009, guid: 3f878df8a026b8f4fbcef61dc9a0f9a6, type: 3}
   pushSpherePrefab: {fileID: 1315397177987353700, guid: 0a8c637db702e504699750f712a19d26, type: 3}
-  sphereFadeStartNormalized: 0.55
+  sphereMaxAlpha: 0.65
+  sphereMinAlpha: 0

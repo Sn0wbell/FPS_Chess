@@ -1,5 +1,67 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &738608902135466491
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2344817854190824634}
+  m_Layer: 6
+  m_Name: WeaponBlockedPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2344817854190824634
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 738608902135466491}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.36632985, y: -0.53997797, z: 0.28109473, w: 0.70371306}
+  m_LocalPosition: {x: 0.65, y: 1.6, z: 0.28}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &4444049525828699389
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2684788447600269955}
+  m_Layer: 6
+  m_Name: WeaponHolder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2684788447600269955
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4444049525828699389}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6639491931967450178
 GameObject:
   m_ObjectHideFlags: 0
@@ -123,6 +185,9 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7017465000047792435}
+  - {fileID: 7086448598964937881}
+  - {fileID: 2684788447600269955}
+  - {fileID: 2344817854190824634}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &364196478879362650
@@ -169,18 +234,20 @@ MonoBehaviour:
   gravity: -39.81
   knockbackGroundFriction: 8
   knockbackStopSpeed: 0.5
+  knockbackBounciness: 0.5
+  minBounceSpeed: 3
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  recoilSequenceInputEpsilon: 0.01
-  attackPoint: {fileID: 0}
-  weaponHolder: {fileID: 0}
-  weaponBlockedPosition: {fileID: 0}
-  weaponHolderOffset: {x: 0, y: 0, z: 0}
+  recoilSequenceInputEpsilon: 0.15
+  attackPoint: {fileID: 7086448598964937881}
+  weaponHolder: {fileID: 2684788447600269955}
+  weaponBlockedPosition: {fileID: 2344817854190824634}
+  weaponHolderOffset: {x: 0.31, y: -0.2886, z: -0.1}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
-  weaponAdjustSpeed: 10
+  weaponAdjustSpeed: 15
   boundSkills: []
 --- !u!114 &4726028686602633508
 MonoBehaviour:
@@ -194,3 +261,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ef58b5ef2ff2624fa619ad9c159aa5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &9081781868140632542
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7086448598964937881}
+  m_Layer: 6
+  m_Name: AttackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7086448598964937881
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9081781868140632542}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

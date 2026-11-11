@@ -1,5 +1,67 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3186023388047799147
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3777276397349756092}
+  m_Layer: 6
+  m_Name: AttackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3777276397349756092
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3186023388047799147}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &3962355884990253637
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8348268536627307794}
+  m_Layer: 6
+  m_Name: WeaponBlockedPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8348268536627307794
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3962355884990253637}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.36632985, y: -0.53997797, z: 0.28109473, w: 0.70371306}
+  m_LocalPosition: {x: 0.65, y: 1.6, z: 0.28}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4524044654196377869
 GameObject:
   m_ObjectHideFlags: 0
@@ -25,7 +87,38 @@ Transform:
   m_GameObject: {fileID: 4524044654196377869}
   serializedVersion: 2
   m_LocalRotation: {x: 0.000000021855694, y: 1.098095e-22, z: 5.024296e-15, w: 1}
-  m_LocalPosition: {x: 0, y: 1.6, z: 0.3}
+  m_LocalPosition: {x: -0, y: 1.725, z: 0.176}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340106202060141755}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5649744500551412156
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7183471636422486930}
+  m_Layer: 6
+  m_Name: WeaponHolder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7183471636422486930
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5649744500551412156}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -156,6 +249,9 @@ Transform:
   m_Children:
   - {fileID: 7017465000047792435}
   - {fileID: 6429692090860270613}
+  - {fileID: 3777276397349756092}
+  - {fileID: 7183471636422486930}
+  - {fileID: 8348268536627307794}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6343523079639849335
@@ -245,18 +341,25 @@ MonoBehaviour:
   gravity: -39.81
   knockbackGroundFriction: 8
   knockbackStopSpeed: 0.5
+  maxStandAngle: 75
+  knockbackBounciness: 0.5
+  minBounceSpeed: 3
+  groundBounciness: 0.3
+  groundBounceFriction: 0.5
+  maxGroundBounces: 2
+  pieceBounciness: 0.5
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
-  recoilSequenceInputEpsilon: 0.01
-  attackPoint: {fileID: 0}
-  weaponHolder: {fileID: 0}
-  weaponBlockedPosition: {fileID: 0}
-  weaponHolderOffset: {x: 0, y: 0, z: 0}
+  recoilSequenceInputEpsilon: 0.15
+  attackPoint: {fileID: 3777276397349756092}
+  weaponHolder: {fileID: 7183471636422486930}
+  weaponBlockedPosition: {fileID: 8348268536627307794}
+  weaponHolderOffset: {x: 0.31, y: -0.2886, z: -0.1}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65
-  weaponAdjustSpeed: 5
+  weaponAdjustSpeed: 15
   boundSkills: []
 --- !u!114 &520594211150687168
 MonoBehaviour:
@@ -273,11 +376,11 @@ MonoBehaviour:
   cooldown: 30
   blockMask: 0
   pawnClonePrefab: {fileID: 8903031554754154760, guid: 63a001732304f9c42af7805731c0164a, type: 3}
-  cloneCount: 5
+  cloneCount: 8
   cloneLifetime: 20
   cloneHealth: 30
-  scatterForce: 11
-  upwardForce: 5
+  scatterForce: 18
+  upwardForce: 12
   spawnRadius: 1.5
   maxSpawnAttempts: 10
   arenaMargin: 1
@@ -286,7 +389,7 @@ MonoBehaviour:
     m_Bits: 1
   cloneRadius: 0.35
   revealSeconds: 2
-  revealMaterial: {fileID: 0}
+  revealMaterial: {fileID: 2100000, guid: 2e2ace13be98486c8adc5d3964133e83, type: 2}
   spawnVFX: {fileID: 0}
   destroyVFX: {fileID: 0}
   dissolveTime: 0.25

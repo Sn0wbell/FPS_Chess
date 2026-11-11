@@ -56,12 +56,12 @@ public static class PieceDeathEffect
 
         Settings s = ArenaController.Current != null ? ArenaController.Current.DeathEffect : Default;
 
-        // The body's volume: its CharacterController (else its renderers).
+        // The body's volume: its CharacterController (else its solid colliders, e.g. a rook wall; else a piece's size).
         Bounds body;
         var cc = piece.GetComponent<CharacterController>();
         if (cc != null)
             body = cc.bounds;
-        else
+        else if (!TrySolidBounds(piece, out body))
             body = new Bounds(piece.transform.position + Vector3.up, new Vector3(0.8f, 2f, 0.8f));
 
         // Fragments take the body's material (the biggest renderer: the model, not the weapon).
@@ -87,8 +87,11 @@ public static class PieceDeathEffect
         int bursts = Mathf.Max(1, s.bursts);
         for (int i = 0; i < bursts; i++)
         {
+            // Spread along the body's longest side (a piece: its height; a wall: its length).
             float k = (i + 0.5f) / bursts;
-            Vector3 at = new Vector3(body.center.x, Mathf.Lerp(body.min.y, body.max.y, k), body.center.z);
+            int axis = body.size.y >= body.size.x && body.size.y >= body.size.z ? 1 : body.size.x >= body.size.z ? 0 : 2;
+            Vector3 at = body.center;
+            at[axis] = Mathf.Lerp(body.min[axis], body.max[axis], k);
             _ = gen.ShatterAt(at, main != null ? main.sharedMaterial : null);
         }
         LastFragmentCount = bursts * gen.fragments;
@@ -99,6 +102,20 @@ public static class PieceDeathEffect
     }
 
     public static bool IsShattered(GameObject piece) => piece != null && hidden.ContainsKey(piece);
+
+    private static bool TrySolidBounds(GameObject obj, out Bounds bounds)
+    {
+        bounds = default;
+        bool any = false;
+        foreach (var c in obj.GetComponentsInChildren<Collider>())
+        {
+            if (c == null || !c.enabled || c.isTrigger)
+                continue;
+            if (!any) { bounds = c.bounds; any = true; }
+            else { bounds.Encapsulate(c.bounds.min); bounds.Encapsulate(c.bounds.max); }
+        }
+        return any;
+    }
 
     /// <summary>Shows the body hidden by Shatter again.</summary>
     public static void Restore(GameObject piece)

@@ -10,7 +10,7 @@ public class PawnCloneMarker : MonoBehaviour
 /// PAWN — decoys. Spawns clones that scatter in random directions (the pawn itself is flung
 /// the same way, so it mixes in), aimed to land inside the arena (a clone that still leaves
 /// it falls off and is defeated; the pawn follows the arena's out-of-bounds rule). Clones carry a copy of the
-/// pawn's weapon (visual only), have a little health and deal no damage.
+/// pawn's weapon (in their WeaponHolder), have a little health and deal no damage.
 /// Whoever kills a clone is revealed to the pawn's side through walls for a few seconds.
 /// The skill stays active while clones live; its cooldown starts when the last clone is gone
 /// (killed or expired).
@@ -51,8 +51,6 @@ public class PawnSkill : ActiveSkill
     [Header("Timing")]
     [SerializeField] private float dissolveTime = 0.25f;
 
-    private const string WeaponVisualName = "CloneWeaponVisual";
-
     private readonly List<PawnCloneHealth> activeClones = new();
     private PawnClonePool pool;
     private ChessPieceFPSController fps;
@@ -61,10 +59,6 @@ public class PawnSkill : ActiveSkill
     private Bounds arena;
 
     // Weapon look-alike for the clones (stripped copy of the pawn's weapon).
-    private GameObject weaponTemplate;
-    private GameObject weaponTemplateSource;
-    private Vector3 weaponLocalPos;
-    private Quaternion weaponLocalRot;
 
     private void Awake()
     {
@@ -76,8 +70,6 @@ public class PawnSkill : ActiveSkill
     private void OnDestroy()
     {
         ClearExistingClones();
-        if (weaponTemplate != null)
-            Destroy(weaponTemplate);
     }
 
     public override void Initialize(in SkillContext ctx)
@@ -92,9 +84,8 @@ public class PawnSkill : ActiveSkill
 
     protected override void OnEnterActive(in SkillContext ctx)
     {
-        ClearExistingClones();
+        ClearExistingClones(shatter: true);
         hasArena = ArenaController.Current != null && ArenaController.Current.TryGetBounds(out arena);
-        PrepareWeaponTemplate();
 
         for (int i = 0; i < cloneCount; i++)
             SpawnClone(ctx);
@@ -119,7 +110,7 @@ public class PawnSkill : ActiveSkill
     }
 
     // Cleanup all remaining clones safely
-    protected override void OnExitActive(in SkillContext ctx) => ClearExistingClones();
+    protected override void OnExitActive(in SkillContext ctx) => ClearExistingClones(shatter: true);
 
     // Force cleanup
     protected override void OnForceCancel(in SkillContext ctx) => ClearExistingClones();
@@ -139,8 +130,10 @@ public class PawnSkill : ActiveSkill
     private Vector3 PickScatterVelocity(Vector3 from, ChessPieceFPSController body)
     {
         float gravity = body != null ? body.Gravity : -9.81f;
-        float bounciness = body != null ? body.KnockbackBounciness : 0f;
+        float bounciness = body != null ? body.GroundBounciness : 0f;
         float minBounce = body != null ? body.MinBounceSpeed : float.PositiveInfinity;
+        float friction = body != null ? body.GroundBounceFriction : 1f;
+        int maxBounces = body != null ? body.MaxGroundBounces : 0;
         Vector3 v = Vector3.zero;
         for (int attempt = 0; attempt < maxSpawnAttempts; attempt++)
         {
@@ -148,7 +141,7 @@ public class PawnSkill : ActiveSkill
             dir.y = Mathf.Abs(dir.y);
             v = dir.normalized * scatterForce + Vector3.up * upwardForce;
 
-            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, gravity, bounciness, minBounce), arenaMargin))
+            if (!hasArena || ArenaController.ContainsXZ(arena, ArenaController.PredictLanding(from, v, gravity, bounciness, minBounce, friction, maxBounces), arenaMargin))
                 return v;
         }
 
@@ -207,7 +200,8 @@ public class PawnSkill : ActiveSkill
         if (cloneFps != null && ctx.fps != null)
             cloneFps.SetTeam(ctx.fps.Team);
 
-        AttachWeaponVisual(clone);
+        GiveCloneTheWeapon(cloneFps);
+        GiveCloneTheAimPoint(cloneFps);
 
         clone.Activate(cloneLifetime, dissolveTime, destroyVFX, pool, PickScatterVelocity(pos, CloneBodyController()), cloneHealth, OnCloneKilled);
         clone.gameObject.SetActive(true);
@@ -234,65 +228,47 @@ public class PawnSkill : ActiveSkill
     }
 
     // =========================
-    // WEAPON LOOK-ALIKE
+    // CLONE WEAPON
     // =========================
-    private GameObject FindOwnerWeapon()
+    /// <summary>
+    /// The clone holds the pawn's own weapon, a real one in its prefab's WeaponHolder (bound like an AI
+    /// piece's, ready for the AI). Kept while the pooled clone is reused; swapped if the pawn's weapon changed.
+    /// </summary>
+    private void GiveCloneTheWeapon(ChessPieceFPSController cloneFps)
     {
-        if (fps == null) return null;
-        WeaponController w = fps.GetCurrentWeapon();
-        if (w == null) w = fps.GetComponentInChildren<WeaponController>();
-        return w != null ? w.gameObject : null;
-    }
-
-    /// <summary>Builds (once per weapon) an inactive, script-free, collider-free copy of the pawn's weapon.</summary>
-    private void PrepareWeaponTemplate()
-    {
-        GameObject source = FindOwnerWeapon();
-        if (source == weaponTemplateSource && (source == null || weaponTemplate != null))
+        GameObject weapon = fps != null ? fps.BoundWeaponPrefab : null;
+        if (cloneFps == null || weapon == null || cloneFps.BoundWeaponPrefab == weapon)
             return;
 
-        if (weaponTemplate != null)
-            Destroy(weaponTemplate);
-        weaponTemplate = null;
-        weaponTemplateSource = source;
-        if (source == null)
-            return;
-
-        // Copy under an INACTIVE parent: the copy's scripts never Awake.
-        var holder = new GameObject(WeaponVisualName + "Template");
-        holder.SetActive(false);
-        holder.transform.SetParent(transform, false);
-
-        GameObject copy = Instantiate(source, holder.transform);
-        copy.name = WeaponVisualName;
-        foreach (var mb in copy.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(mb);
-        foreach (var col in copy.GetComponentsInChildren<Collider>(true)) DestroyImmediate(col);
-        foreach (var rb in copy.GetComponentsInChildren<Rigidbody>(true)) DestroyImmediate(rb);
-        foreach (var audio in copy.GetComponentsInChildren<AudioSource>(true)) DestroyImmediate(audio);
-
-        weaponTemplate = holder;
-        // Pose relative to the pawn's root, reused on every clone.
-        weaponLocalPos = transform.InverseTransformPoint(source.transform.position);
-        weaponLocalRot = Quaternion.Inverse(transform.rotation) * source.transform.rotation;
-    }
-
-    private void AttachWeaponVisual(PawnCloneHealth clone)
-    {
-        Transform old = clone.transform.Find(WeaponVisualName);
+        WeaponController old = cloneFps.GetCurrentWeapon();
         if (old != null)
             Destroy(old.gameObject);
-
-        if (weaponTemplate == null || weaponTemplate.transform.childCount == 0)
-            return;
-
-        GameObject visual = Instantiate(weaponTemplate.transform.GetChild(0).gameObject, clone.transform);
-        visual.name = WeaponVisualName;
-        visual.transform.position = clone.transform.TransformPoint(weaponLocalPos);
-        visual.transform.rotation = clone.transform.rotation * weaponLocalRot;
-        visual.SetActive(true);
+        cloneFps.BindWeapon(weapon, null, null, null, null, null);
     }
 
-    private void ClearExistingClones()
+    private const string AimPointName = "AimPoint";
+
+    /// <summary>
+    /// The clone gets an empty AimPoint (no camera) right where the pawn's camera point is, looking level, and the
+    /// pawn's weapon holder offset: its weapon sits in the hands like the pawn's and works like a real piece's.
+    /// </summary>
+    private void GiveCloneTheAimPoint(ChessPieceFPSController cloneFps)
+    {
+        if (cloneFps == null || fps == null || fps.cameraPoint == null)
+            return;
+
+        Transform aim = cloneFps.transform.Find(AimPointName);
+        if (aim == null)
+        {
+            aim = new GameObject(AimPointName).transform;
+            aim.SetParent(cloneFps.transform, false);
+        }
+        aim.localPosition = transform.InverseTransformPoint(fps.cameraPoint.position);
+        aim.localRotation = Quaternion.identity;
+        cloneFps.UseAimPoint(aim, fps.WeaponHolderOffset);
+    }
+
+    private void ClearExistingClones(bool shatter = false)
     {
         foreach (var clone in activeClones)
         {
@@ -302,6 +278,8 @@ public class PawnSkill : ActiveSkill
                 Destroy(clone.gameObject); // the pool lives under this dying pawn: never re-parent into it
             else if (clone.IsDying)
                 continue;                  // already dissolving: it returns to the pool by itself
+            else if (shatter)
+                clone.Vanish();            // breaks apart, then returns to the pool by itself
             else if (pool != null)
                 clone.ForceDespawn();
         }

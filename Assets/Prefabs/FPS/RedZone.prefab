@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2722061169073245510}
-  - component: {fileID: 3296097815093323866}
+  - component: {fileID: -3650995735423207220}
   m_Layer: 0
   m_Name: RedZone
   m_TagString: Untagged
@@ -32,7 +32,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3296097815093323866
+--- !u!114 &-3650995735423207220
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -41,15 +41,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 2992163428134208009}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 010be09c4a8477146abef554670d388f, type: 3}
+  m_Script: {fileID: 11500000, guid: f43cd47e3188b30409cd758adf042a5f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Zone
+  m_EditorClassIdentifier: Assembly-CSharp::RedZone
   quadCount: 36
-  cageHeight: 6
+  cageHeight: 4
   growTime: 0.15
   collapseTime: 0.2
-  cageColor: {r: 1, g: 0, b: 0, a: 0.7647059}
+  cageColor: {r: 1, g: 0, b: 0, a: 1}
   overlayType: 2
   pulseSpeed: 3
-  pulseMinAlpha: 0.15
-  pulseMaxAlpha: 0.35
+  pulseMinAlpha: 0.35
+  pulseMaxAlpha: 0.75

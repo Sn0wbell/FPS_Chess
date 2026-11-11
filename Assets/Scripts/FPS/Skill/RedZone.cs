@@ -8,6 +8,9 @@ public class RedZone : Zone
 {
     private Coroutine blinkRoutine;
 
+    /// <summary>How far above / below its centre it is drawn (the grenade's blast height); set before Activate.</summary>
+    public float HeightRange { get; set; } = 4f;
+
     // =========================
     // PUBLIC API
     // =========================
@@ -15,8 +18,14 @@ public class RedZone : Zone
     {
         base.Activate(pos, radius, duration);
 
+        // Drawn only on surfaces within the blast's height (not on the ground far below).
+        overlayMinY = pos.y - HeightRange;
+        overlayMaxY = pos.y + HeightRange;
+        if (cageId >= 0)
+            ZoneOverlaySystem.UpdateTransform(cageId, pos, overlayMinY, overlayMaxY);
+
         // đảm bảo alpha đúng ngay frame đầu
-        ApplyOverlayAlpha(cageColor.a);
+        ApplyOverlayAlpha(pulseMaxAlpha);
 
         blinkRoutine = StartCoroutine(BlinkRoutine(duration));
     }
@@ -28,13 +37,12 @@ public class RedZone : Zone
     }
 
     // =========================
-    // BLINK (AUTHORITATIVE)
+    // BLINK (AUTHORITATIVE): between pulseMinAlpha and pulseMaxAlpha (prefab), faster and faster
     // =========================
     private IEnumerator BlinkRoutine(float duration)
     {
         const float startPeriod = 0.7f;
         const float endPeriod = 0.1f;
-        const float minAlpha = 0.12f;
 
         float elapsed = 0f;
         float phase = 0f;
@@ -50,14 +58,14 @@ public class RedZone : Zone
             float t = Mathf.PingPong(phase, 1f);
             t = t * t * (3f - 2f * t);
 
-            float alpha = Mathf.Lerp(minAlpha, cageColor.a, t);
+            float alpha = Mathf.Lerp(pulseMinAlpha, pulseMaxAlpha, t);
 
             ApplyOverlayAlpha(alpha);
 
             yield return null;
         }
 
-        ApplyOverlayAlpha(cageColor.a);
+        ApplyOverlayAlpha(pulseMaxAlpha);
     }
 
     private void StopBlink()

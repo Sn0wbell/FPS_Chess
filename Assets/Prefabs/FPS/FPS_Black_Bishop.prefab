@@ -198,7 +198,7 @@ MonoBehaviour:
   obstacleMask:
     serializedVersion: 2
     m_Bits: 1
-  impactRadius: 1
+  impactRadius: 0.5
   impactDamageScale: 4
   landingRadius: 1.5
   landingDamageScale: 6

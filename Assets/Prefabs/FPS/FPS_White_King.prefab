@@ -81,6 +81,8 @@ MonoBehaviour:
   gravity: -39.81
   knockbackGroundFriction: 8
   knockbackStopSpeed: 0.5
+  knockbackBounciness: 0.5
+  minBounceSpeed: 3
   mouseSensitivity: 15
   minPitch: -80
   maxPitch: 60
@@ -88,7 +90,7 @@ MonoBehaviour:
   attackPoint: {fileID: 0}
   weaponHolder: {fileID: 0}
   weaponBlockedPosition: {fileID: 0}
-  weaponHolderOffset: {x: 0, y: 0, z: 0}
+  weaponHolderOffset: {x: 0.31, y: -0.2886, z: -0.1}
   weaponBlockLayer:
     serializedVersion: 2
     m_Bits: 65

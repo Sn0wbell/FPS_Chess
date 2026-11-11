@@ -131,10 +131,10 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
         }
 
         // Blast like the knight's landing: away from the zone centre, fading with distance, small bounce
-        // (everyone, allies too; a piece moved by another skill keeps that move).
+        // (everyone, allies too; a piece moved by another skill is knocked too: the later skill wins).
         foreach (var pair in blastMap)
         {
-            if (!SkillTargeting.IsAlive(pair.Key) || pair.Key.IsUnderForcedMove)
+            if (!SkillTargeting.IsAlive(pair.Key))
                 continue;
             pair.Key.AddExternalImpulse(SkillTargeting.RadialKnock(pair.Value.from, pair.Key.transform.position,
                 settings.radius, settings.explosionForce, settings.bounceFactor));

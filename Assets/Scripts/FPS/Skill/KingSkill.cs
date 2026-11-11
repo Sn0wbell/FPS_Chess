@@ -14,7 +14,7 @@ using UnityEngine;
 ///   - gravity zone: pieces inside move and jump slower.
 /// Effects only (no damage), so allies are affected too.
 /// </summary>
-public class KingSkill : ActiveSkill
+public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
 {
     // =========================
     // REFERENCES
@@ -47,6 +47,9 @@ public class KingSkill : ActiveSkill
     [Header("Gravity Debuff")]
     [SerializeField] private float moveMultiplier = 0.4f;
     [SerializeField] private float jumpMultiplier = 0.25f;
+    [Tooltip("Knock-backs from other sources are scaled by this while in the gravity zone (the king's own bounces are not).")]
+    [Range(0f, 1f)]
+    [SerializeField] private float knockMultiplier = 0.5f;
 
     // =========================
     // ACTIVE
@@ -386,8 +389,8 @@ public class KingSkill : ActiveSkill
 
                 ReleasePulled(a);
                 ReleasePulled(b);
-                a.AddExternalImpulse(va);
-                b.AddExternalImpulse(vb);
+                a.AddExternalImpulse(va, this);
+                b.AddExternalImpulse(vb, this);
             }
         }
     }
@@ -409,7 +412,7 @@ public class KingSkill : ActiveSkill
 
         Vector3 reflected = v + 2f * inward * n; // the king is immovable: the piece bounces straight back off him
         ReleasePulled(piece);
-        piece.AddExternalImpulse(reflected + Vector3.up * (collisionBounce * inward));
+        piece.AddExternalImpulse(reflected + Vector3.up * (collisionBounce * inward), this);
     }
 
     private static bool Touching(ChessPieceFPSController a, ChessPieceFPSController b)
@@ -422,6 +425,20 @@ public class KingSkill : ActiveSkill
         float horizontal = new Vector2(d.x, d.z).magnitude;
         float vertical = Mathf.Abs(ca.bounds.center.y - cb.bounds.center.y);
         return horizontal <= ca.radius + cb.radius + 0.15f && vertical <= (ca.height + cb.height) * 0.5f;
+    }
+
+    /// <summary>A piece knocked by another source while flying in the pull: it leaves the pull and flies normally.</summary>
+    public void OnHeldPieceKnocked(ChessPieceFPSController piece)
+    {
+        if (piece != null && activePulls.ContainsKey(piece))
+            ReleasePulled(piece);
+    }
+
+    /// <summary>Another skill takes a pulled piece over: only that one leaves the pull (the rest goes on).</summary>
+    public void OnHeldPieceTakenOver(ChessPieceFPSController piece)
+    {
+        if (piece != null && activePulls.ContainsKey(piece))
+            ReleasePulled(piece);
     }
 
     private void ReleasePulled(ChessPieceFPSController target)
@@ -458,7 +475,7 @@ public class KingSkill : ActiveSkill
                 continue;
 
             if (gravityAffected.Add(target))
-                target.OverrideMovement(this, moveMultiplier, jumpMultiplier); // keyed by this king
+                target.OverrideMovement(this, moveMultiplier, jumpMultiplier, knockMultiplier); // keyed by this king
         }
 
         gravityStale.Clear();

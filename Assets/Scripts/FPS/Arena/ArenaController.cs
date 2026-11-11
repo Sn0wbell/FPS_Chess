@@ -231,20 +231,24 @@ public class ArenaController : MonoBehaviour
         p.x >= b.min.x + margin && p.x <= b.max.x - margin && p.z >= b.min.z + margin && p.z <= b.max.z - margin;
 
     /// <summary>
-    /// Where a body thrown with this velocity comes down at its start height (gravity &lt; 0), bounces included:
-    /// each time it hits the ground at minBounceSpeed or more it bounces back up at bounciness x that speed.
+    /// Where a body thrown with this velocity comes down at its start height (gravity &lt; 0), ground bounces included:
+    /// each time it hits the ground at minBounceSpeed or more (up to maxBounces times) it bounces back up at
+    /// bounciness x that speed, keeping friction x its speed along the ground.
     /// </summary>
-    public static Vector3 PredictLanding(Vector3 start, Vector3 velocity, float gravity, float bounciness = 0f, float minBounceSpeed = float.PositiveInfinity)
+    public static Vector3 PredictLanding(Vector3 start, Vector3 velocity, float gravity, float bounciness = 0f,
+        float minBounceSpeed = float.PositiveInfinity, float friction = 1f, int maxBounces = 0)
     {
         float g = Mathf.Max(0.01f, -gravity);
         float vy = Mathf.Max(0f, velocity.y);
-        float flight = 2f * vy / g;
-        for (int i = 0; i < 32 && bounciness > 0f && vy >= minBounceSpeed; i++)
+        Vector3 along = new Vector3(velocity.x, 0f, velocity.z);
+        Vector3 travel = along * (2f * vy / g);
+        for (int i = 0; i < maxBounces && bounciness > 0f && vy >= minBounceSpeed; i++)
         {
             vy *= bounciness;
-            flight += 2f * vy / g;
+            along *= friction;
+            travel += along * (2f * vy / g);
         }
-        return start + new Vector3(velocity.x, 0f, velocity.z) * flight;
+        return start + travel;
     }
 
     private Bounds GetBoundaryBounds()

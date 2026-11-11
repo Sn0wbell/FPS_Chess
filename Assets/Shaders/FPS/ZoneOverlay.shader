@@ -109,6 +109,11 @@ Shader "FPS/ZoneOverlay"
                     if (inside <= 0.0)
                         continue;
 
+                    // A red zone (type 2) only marks surfaces within its height band (as high as its blast reaches):
+                    // not the ground far below a zone up on a roof.
+                    if (_CageType[c].x > 1.5 && (i.worldPos.y < _CageHeight[c].x || i.worldPos.y > _CageHeight[c].y))
+                        continue;
+
                     float4 zc = _CageColor[c];
 
                     if (radius < bestRadius)
