@@ -73,6 +73,7 @@ public class FPSCombatUIController : MonoBehaviour
 
         currentHealth.OnDamaged += HandleDamaged;
         currentHealth.OnDeath += HandleDeath;
+        currentHealth.OnHealthChanged += UpdateHealthUI; // heals, resets, regen, death
 
         if (damageIndicator && mainCam)
             damageIndicator.Initialize(currentPlayer.transform, mainCam);
@@ -89,6 +90,7 @@ public class FPSCombatUIController : MonoBehaviour
         {
             currentHealth.OnDamaged -= HandleDamaged;
             currentHealth.OnDeath -= HandleDeath;
+            currentHealth.OnHealthChanged -= UpdateHealthUI;
         }
 
         currentPlayer = null;
@@ -107,7 +109,16 @@ public class FPSCombatUIController : MonoBehaviour
         // -------- Direction Indicator (PLAYER ONLY)
         if (damageIndicator != null)
         {
-            damageIndicator.ShowHit(info.hitDirection, finalDamage);
+            // Where the hit came from: hitDirection is the way it travelled (shot / blast -> the player), so its source
+            // lies behind it; without a direction, where the source object is.
+            Vector3 from;
+            if (info.hitDirection.sqrMagnitude > 1e-6f && currentPlayer != null)
+                from = currentPlayer.transform.position - info.hitDirection.normalized;
+            else if (info.source != null)
+                from = info.source.transform.position;
+            else
+                from = info.hitPoint;
+            damageIndicator.ShowHit(from, finalDamage);
         }
 
         // -------- Overlay (Option B – intensity)
@@ -138,7 +149,7 @@ public class FPSCombatUIController : MonoBehaviour
             return;
 
         if (healthBar)
-            healthBar.value = currentHealth.CurrentHealth / currentHealth.MaxHealth;
+            healthBar.value = currentHealth.MaxHealth > 0f ? currentHealth.CurrentHealth / currentHealth.MaxHealth : 0f;
 
         if (healthText)
             healthText.text =

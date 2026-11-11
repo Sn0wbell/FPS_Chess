@@ -5432,7 +5432,7 @@ MonoBehaviour:
   firePointDistance: 2.2
   fireRate: 0.8
   damage: 31
-  range: 20
+  range: 44
   currentFireMode: 2
   allowAuto: 0
   allowBurst: 0
@@ -5559,6 +5559,7 @@ MonoBehaviour:
   modelRecoilAimMultiplier: 0.6
   pelletCount: 8
   pelletDamageMultiplier: 1
+  pelletSpreadAngle: 5
 --- !u!1 &6170670915367789421
 GameObject:
   m_ObjectHideFlags: 0

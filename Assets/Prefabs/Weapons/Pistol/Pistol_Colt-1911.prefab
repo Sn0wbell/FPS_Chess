@@ -548,7 +548,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GunController
   weaponName: Colt-1911
   weaponType: 0
-  weaponModelPrefab: {fileID: 5644226305266016333, guid: 39a8ac765c89a1142aa55be8e7b0b379, type: 3}
+  weaponModelPrefab: {fileID: 8354232354669901488}
   weaponDisplayScale: 0.8
   firePointDistance: 1.25
   fireRate: 6

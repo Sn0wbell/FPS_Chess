@@ -305,6 +305,8 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
             if (skill != null)
                 skill.ForceCancel(); // releases every effect it put on other pieces
 
+        StopAimingView(); // dead while aiming: the death cam is not zoomed in
+
         // The body breaks into fragments where it is and stops moving (same death for every piece).
         Vector3 bodyCenter = controller != null ? controller.bounds.center : transform.position + Vector3.up;
         PieceDeathEffect.Shatter(gameObject);
@@ -392,6 +394,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
             {
                 HandleWeaponBlock();
                 UpdateWeaponSystemPosition();
+
+                // The player's view (zoom + gun model) still finishes going where it was heading when control ended:
+                // aiming at the match end, the aimed view stays (never frozen half way).
+                if (IsPlayerControlled && currentGun != null)
+                    currentGun.UpdateAimView();
             }
             return;
         }
@@ -444,6 +451,14 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
         canMove = false;
         canAct = false;
         verticalVelocity = 0f;
+        // (Aiming is kept: at the match end the player still sees the aimed view, e.g. the last enemy breaking apart.)
+    }
+
+    /// <summary>The player's piece stops aiming at once (death): the camera is back to its normal view.</summary>
+    private void StopAimingView()
+    {
+        if (IsPlayerControlled && currentGun != null)
+            currentGun.StopAiming();
     }
 
     public void DisableAction() { canAct = false; }

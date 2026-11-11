@@ -10,6 +10,11 @@ public class ShotgunController : GunController
     [Tooltip("Optional damage multiplier per pellet (usually < 1)")]
     public float pelletDamageMultiplier = 1f;
 
+    [Tooltip("How wide the pellets fan out around the shot's line (half-angle, degrees): the size of the pattern. " +
+             "Fixed: it does not grow with firing nor shrink when aiming. Where that line goes (how far off the " +
+             "crosshair the whole pattern lands) is the gun's own spread: min / max / increase per shot / aiming.")]
+    public float pelletSpreadAngle = 5f;
+
     private bool hasOneShotModifier = false;
     private float oneShotDamageMultiplier = 1f;
     private float oneShotSpreadMultiplier = 1f;
@@ -29,50 +34,49 @@ public class ShotgunController : GunController
         currentAmmo--;
         isShooting = true;
 
+        NotifyHUD();
+
         // -----------------------------
         // Resolve one-shot modifiers
         // -----------------------------
         float finalDamage = damage * ConsumeShotDamageMultiplier(); // one shot = all pellets
-        float spreadAngle = currentSpreadAngle;
+        float patternAngle = pelletSpreadAngle;
 
         if (hasOneShotModifier)
         {
             finalDamage *= oneShotDamageMultiplier;
-            spreadAngle *= oneShotSpreadMultiplier;
+            patternAngle *= oneShotSpreadMultiplier;
         }
 
-        // Shotgun DOES NOT accumulate spread per pellet
-        // (do NOT increase currentSpreadAngle here)
-
-        // -----------------------------
-        // Recoil (same as base gun)
-        // -----------------------------
-        if (applyRecoil)
+        // Where the whole pattern goes: the gun's spread, exactly like any gun (grows per shot up to max, back to
+        // min over time, tighter while aiming). Once per shot, not per pellet.
+        Vector3 shotLine = attackPoint.forward;
+        if (applySpread)
         {
-            float vertical = recoilVertical;
-            float horizontal = Random.Range(-recoilHorizontal, recoilHorizontal);
-            if (isAiming) vertical *= aimRecoilMultiplier;
-            currentRecoil += new Vector2(horizontal, vertical);
+            currentSpreadAngle = Mathf.Clamp(currentSpreadAngle + spreadIncreasePerShot, minSpreadAngle, maxSpreadAngle);
+            if (isAiming)
+                currentSpreadAngle *= aimSpreadMultiplier;
+            shotLine = RandomInCone(attackPoint.forward, attackPoint.up, attackPoint.right, currentSpreadAngle);
         }
+        Quaternion lineRotation = Quaternion.LookRotation(shotLine, attackPoint.up);
+
+        // -----------------------------
+        // Recoil: exactly like the other guns, once per shot (not per pellet)
+        // -----------------------------
+        ApplyShotRecoil();
 
         // -----------------------------
         // Fire pellets
         // -----------------------------
         for (int i = 0; i < pelletCount; i++)
         {
-            Quaternion pelletRotation = attackPoint.rotation;
+            // The pattern: each pellet fans out around the shot's line (fixed size, not narrowed while aiming).
+            Quaternion pelletRotation = lineRotation;
 
             if (applySpread)
             {
-                float spreadRad = spreadAngle * Mathf.Deg2Rad;
-                Vector2 rand = Random.insideUnitCircle * Mathf.Tan(spreadRad);
-
-                Vector3 spreadDir =
-                    attackPoint.forward +
-                    attackPoint.up * rand.y +
-                    attackPoint.right * rand.x;
-
-                pelletRotation = Quaternion.LookRotation(spreadDir.normalized);
+                Vector3 pelletDir = RandomInCone(lineRotation * Vector3.forward, lineRotation * Vector3.up, lineRotation * Vector3.right, patternAngle);
+                pelletRotation = Quaternion.LookRotation(pelletDir);
             }
 
             var bullet = BulletPoolManager.Instance.GetBullet(attackPoint.position, pelletRotation);
@@ -84,7 +88,7 @@ public class ShotgunController : GunController
                 bulletScript.MaxRange = range;
                 bulletScript.Source = gameObject;
 
-                bulletScript.Fire(attackPoint.forward);
+                bulletScript.Fire(pelletRotation * Vector3.forward); // each pellet flies its own way in the cone
             }
         }
 
@@ -105,5 +109,12 @@ public class ShotgunController : GunController
         }
 
         return true;
+    }
+
+    /// <summary>A random direction within <paramref name="halfAngle"/> degrees of <paramref name="forward"/>.</summary>
+    private static Vector3 RandomInCone(Vector3 forward, Vector3 up, Vector3 right, float halfAngle)
+    {
+        Vector2 rand = Random.insideUnitCircle * Mathf.Tan(Mathf.Max(0f, halfAngle) * Mathf.Deg2Rad);
+        return (forward + up * rand.y + right * rand.x).normalized;
     }
 }

@@ -64,7 +64,12 @@ public class DamageIndicatorUI : MonoBehaviour
 
         if (playerTransform && playerCamera)
         {
+            // Level view direction (the hit direction is level too): looking up / down does not turn the arrow.
             Vector3 forward = playerCamera.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 1e-6f)
+                forward = playerTransform.forward; // looking straight up / down
+            forward.y = 0f;
             float angle = Vector3.SignedAngle(forward, hitDirection, Vector3.up);
             indicatorImage.rectTransform.rotation = Quaternion.Euler(0, 0, -(angle + rotationOffset));
         }

@@ -22,6 +22,8 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
 
     public event Action OnDeath;
     public event Action<DamageInfo, float> OnDamaged; // actual damage applied
+    /// <summary>Health or max health changed in any way (hit, heal, regen, reset, death): for the UI.</summary>
+    public event Action OnHealthChanged;
 
     // =========================
     // REGEN SYSTEM
@@ -102,6 +104,7 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
 
         CommitDamage(finalDamage);
         OnDamaged?.Invoke(info, finalDamage);
+        OnHealthChanged?.Invoke();
 
         if (hitSound != null)
             hitSound.Play();
@@ -131,6 +134,7 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
         maxHealth = baseMaxHealth;
         currentHealth = Mathf.Clamp(baseMaxHealth * currentFraction, 1f, baseMaxHealth);
         isDead = false;
+        OnHealthChanged?.Invoke();
     }
 
     private void CommitDamage(float damage)
@@ -151,8 +155,10 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
         if (isDead) return;
 
         isDead = true;
+        currentHealth = 0f; // dead shows 0 (a forced kill too)
         regenEnabled = false;
         OnDeath?.Invoke();
+        OnHealthChanged?.Invoke();
 
         if (deathSound != null)
             deathSound.Play();
@@ -165,7 +171,10 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
     private void HealInternal(float amount)
     {
         if (!IsAlive) return;
+        float before = currentHealth;
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
+        if (currentHealth != before)
+            OnHealthChanged?.Invoke();
     }
 
     public void ResetHealth(float newMaxHealth)
@@ -176,6 +185,7 @@ public class ChessPieceHealth : MonoBehaviour, IDamageable
         regenEnabled = false;
         regenMultiplier = 1f;
         isDead = false;
+        OnHealthChanged?.Invoke();
     }
 
     // =========================

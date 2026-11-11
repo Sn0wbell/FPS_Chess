@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using static Unity.VisualScripting.Member;
 using static UnityEngine.UI.Image;
@@ -14,6 +14,14 @@ public class Bullet : MonoBehaviour
     private float distanceTraveled = 0f;
 
     public float bulletDamageBonus = 0.01f;
+
+    [Header("Impact Effects (pooled)")]
+    [Tooltip("Seconds a bullet hole / blood effect stays.")]
+    public float impactLifetime = 20f;
+    [Tooltip("Most impact effects of one kind shown at once (the oldest is reused when full).")]
+    public int impactPoolSize = 128;
+
+    private bool despawned; // back to the pool (a second contact in the same physics step is ignored)
     public LayerMask weaponLayer;
     private float speed = 0f;
     private float lifeTime = 0f;
@@ -48,6 +56,7 @@ public class Bullet : MonoBehaviour
         lastPosition = startPosition;
         lifeTimer = 0f;
         distanceTraveled = 0f;
+        despawned = false;
     }
 
     private void Update()
@@ -103,75 +112,55 @@ public class Bullet : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        if (collision.gameObject == gameObject) return;
+        if (despawned || collision.gameObject == gameObject) return; // already hit something this step
 
         GameObject hitObject = collision.gameObject;
 
         IDamageable target = hitObject.GetComponentInParent<IDamageable>();
 
-        float velocityMagnitude;
-        try { velocityMagnitude = rb.linearVelocity.magnitude; }
-        catch { velocityMagnitude = rb.linearVelocity.magnitude; }
+        bool hasContact = collision.contactCount > 0;
+        ContactPoint contact = hasContact ? collision.GetContact(0) : default;
+        Vector3 hitPoint = hasContact ? contact.point : transform.position;
+        Vector3 hitNormal = hasContact ? contact.normal : -transform.forward;
 
-        // Use local damage value for this hit; do not mutate BaseDamage permanently
-        float damage = baseDamage + (velocityMagnitude * bulletDamageBonus);
-
-        if (target != null)
+        // A gun set to deal no damage (a pawn decoy's) deals none at all: no speed bonus either.
+        if (target != null && baseDamage > 0f)
         {
-            ContactPoint contact = collision.contacts[0];
-            Vector3 hitPoint = contact.point;
-            Vector3 hitNormal = contact.normal;
-            Vector3 hitPosition = hitPoint + hitNormal * 0.001f;
+            // Use local damage value for this hit; do not mutate BaseDamage permanently
+            float damage = baseDamage + (rb.linearVelocity.magnitude * bulletDamageBonus);
 
             target.TakeDamage(new DamageInfo
             {
                 amount = damage,
-                hitPoint = hitPosition,
+                hitPoint = hitPoint + hitNormal * 0.001f,
                 hitDirection = transform.forward,
                 source = Source,
                 type = DamageType.Bullet
             });
         }
 
-        if (hitObject.layer != LayerMask.NameToLayer("Enemy") && hitObject.layer != LayerMask.NameToLayer("Player"))
-            SpawnImpactEffects(collision);
-        else
-            SpawnImpactFleshEffects(collision);
+        // A piece (or a decoy) bleeds; anything else gets a bullet hole.
+        bool hitAPiece = hitObject.GetComponentInParent<ChessPieceFPSController>() != null;
+        SpawnImpact(hitAPiece ? bulletFleshPrefab : bulletHolePrefab, hasContact, hitPoint, hitNormal, collision.transform);
 
         Despawn();
     }
-    void SpawnImpactEffects(Collision collision)
+    /// <summary>A bullet hole / blood effect from the pool, stuck to what was hit, shown impactLifetime seconds.</summary>
+    void SpawnImpact(GameObject prefab, bool hasContact, Vector3 hitPoint, Vector3 hitNormal, Transform hitTransform)
     {
-        if (bulletHolePrefab != null && collision.contacts.Length > 0)
-        {
-            ContactPoint contact = collision.contacts[0];
-            Vector3 hitPoint = contact.point;
-            Vector3 hitNormal = contact.normal;
-            Vector3 spawnPosition = hitPoint + hitNormal * 0.001f;
-            Quaternion spawnRotation = Quaternion.LookRotation(hitNormal);
+        if (prefab == null || !hasContact)
+            return;
 
-            GameObject hole = Instantiate(bulletHolePrefab, spawnPosition, spawnRotation);
-            hole.transform.SetParent(collision.transform);
-            Destroy(hole, 300f);
-        }
+        Vector3 spawnPosition = hitPoint + hitNormal * 0.001f;
+        Quaternion spawnRotation = Quaternion.LookRotation(hitNormal);
+        ImpactEffectPool.Spawn(prefab, spawnPosition, spawnRotation, hitTransform, impactLifetime, impactPoolSize);
     }
-    void SpawnImpactFleshEffects(Collision collision)
-    {
-        if (bulletFleshPrefab != null && collision.contacts.Length > 0)
-        {
-            ContactPoint contact = collision.contacts[0];
-            Vector3 hitPoint = contact.point;
-            Vector3 hitNormal = contact.normal;
-            Vector3 spawnPosition = hitPoint + hitNormal * 0.001f;
-            Quaternion spawnRotation = Quaternion.LookRotation(hitNormal);
 
-            GameObject hole = Instantiate(bulletFleshPrefab, spawnPosition, spawnRotation);
-            hole.transform.SetParent(collision.transform);
-            Destroy(hole, 300f);
-        }
-    }
     private void Despawn()
     {
+        if (despawned)
+            return; // never back to the pool twice
+        despawned = true;
         BaseDamage = 0f;
         Source = null;
 

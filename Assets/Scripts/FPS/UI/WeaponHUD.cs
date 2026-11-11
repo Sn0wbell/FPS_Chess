@@ -18,6 +18,13 @@ public class WeaponHUD : MonoBehaviour
     private WeaponController weaponController;
     private GunController gunController;
 
+    // What is on screen now: the texts are rebuilt only when these change (no new strings every frame).
+    private int shownAmmo = int.MinValue;
+    private int shownTotal = int.MinValue;
+    private int shownMode = int.MinValue;
+    private int shownReloadTenths = int.MinValue;
+    private bool showingNoGun;
+
     private void Start()
     {
         UpdateUI();
@@ -54,25 +61,54 @@ public class WeaponHUD : MonoBehaviour
 
     void Update()
     {
-        if (weaponController == null)
+        if (gunController == null)
         {
-            ammoText.text = "";
-            fireModeText.text = "";
-            weaponNameText.text = "";
+            ShowNoGun();
             return;
         }
 
         UpdateAmmoDisplay();
         UpdateFireModeDisplay();
-        if (gunController != null) UpdateReloadIndicator();
+        UpdateReloadIndicator();
+    }
+
+    /// <summary>No gun (none, a melee weapon, or gone with its piece): no ammo, fire mode or reload bar left on screen.</summary>
+    void ShowNoGun()
+    {
+        if (!showingNoGun)
+        {
+            ammoText.text = "";
+            fireModeText.text = "";
+            if (reloadIndicator != null)
+                reloadIndicator.SetActive(false);
+            showingNoGun = true;
+            ForgetShownValues();
+        }
+        if (weaponController == null && weaponNameText.text.Length > 0)
+            weaponNameText.text = "";
+    }
+
+    void ForgetShownValues()
+    {
+        shownAmmo = int.MinValue;
+        shownTotal = int.MinValue;
+        shownMode = int.MinValue;
+        shownReloadTenths = int.MinValue;
     }
 
     void UpdateAmmoDisplay()
     {
         if (gunController != null)
         {
-            ammoText.text = $"{gunController.GetCurrentAmmo()} / {gunController.GetTotalAmmo()}";
-            ammoText.color = gunController.GetCurrentAmmo() == 0 ? Color.red : Color.white;
+            showingNoGun = false;
+            int ammo = gunController.GetCurrentAmmo();
+            int total = gunController.GetTotalAmmo();
+            if (ammo == shownAmmo && total == shownTotal)
+                return; // unchanged: no new string
+            shownAmmo = ammo;
+            shownTotal = total;
+            ammoText.text = $"{ammo} / {total}";
+            ammoText.color = ammo == 0 ? Color.red : Color.white;
         }
     }
 
@@ -80,7 +116,11 @@ public class WeaponHUD : MonoBehaviour
     {
         if (gunController != null)
         {
-            string modeName = gunController.GetCurrentFireMode().ToString().ToUpper();
+            FireMode mode = gunController.GetCurrentFireMode();
+            if ((int)mode == shownMode)
+                return; // unchanged: no new string
+            shownMode = (int)mode;
+            string modeName = mode.ToString().ToUpper();
             fireModeText.text = $"[ {modeName} ]";
         }
     }
@@ -101,7 +141,11 @@ public class WeaponHUD : MonoBehaviour
         else
         {
             weaponNameText.text = "";
+            if (weaponDisplay3D != null) weaponDisplay3D.SetWeaponModel(null, 1f); // no weapon: no model left on the HUD
         }
+
+        showingNoGun = false;
+        ForgetShownValues(); // the new weapon is shown in full
 
         if (isActiveAndEnabled)
         {
@@ -130,8 +174,13 @@ public class WeaponHUD : MonoBehaviour
 
         if (reloadCountdown != null)
         {
-            reloadCountdown.text =
-                $"{gunController.GetReloadRemainingTime():0.0}";
+            float remaining = gunController.GetReloadRemainingTime();
+            int tenths = Mathf.CeilToInt(remaining * 10f);
+            if (tenths != shownReloadTenths) // a new string only when the shown tenth changes
+            {
+                shownReloadTenths = tenths;
+                reloadCountdown.text = $"{remaining:0.0}";
+            }
         }
     }
 }

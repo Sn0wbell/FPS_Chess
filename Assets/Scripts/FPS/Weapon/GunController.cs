@@ -164,7 +164,7 @@ public class GunController : WeaponController
     public delegate void OnGunStatChange();
     public event OnGunStatChange onGunStatChange;
 
-    private void NotifyHUD()
+    protected void NotifyHUD()
     {
         onGunStatChange?.Invoke();
     }
@@ -323,6 +323,14 @@ public class GunController : WeaponController
     {
         isAiming = aim;
     }
+
+    /// <summary>The piece died / lost control while aiming: aiming ends and the camera is back to its normal view at once.</summary>
+    public void StopAiming()
+    {
+        isAiming = false;
+        if (Camera.main != null)
+            Camera.main.fieldOfView = normalFOV;
+    }
     public void SetCrosshair(RectTransform centerScope, RectTransform topScope, RectTransform bottomScope, RectTransform leftScope, RectTransform rightScope)
     {
         pointCenterScope = centerScope;
@@ -423,13 +431,13 @@ public class GunController : WeaponController
             case FireMode.Auto:
                 if (requireTriggerReleaseAfterReload)
                     break;
-                if (time >= nextTimeToFire)
+                // Several shots in one frame when the frame is longer than the interval (low FPS).
+                for (int shot = 0; shot < MaxShotsPerFrame && time >= nextTimeToFire; shot++)
                 {
-                    if (Fire())
-                    {
-                        nextTimeToFire = time + 1f / fireRate;
-                        triggerReleasedSinceLastShot = false;
-                    }
+                    if (!Fire())
+                        break;
+                    ScheduleNextShot(time);
+                    triggerReleasedSinceLastShot = false;
                 }
                 break;
 
@@ -452,7 +460,7 @@ public class GunController : WeaponController
                 {
                     if (Fire())
                     {
-                        nextTimeToFire = time + 1f / fireRate;
+                        ScheduleNextShot(time);
                         triggerReleasedSinceLastShot = false;
                     }
                 }
@@ -505,6 +513,18 @@ public class GunController : WeaponController
     }
 
     // --- FIRE LOGIC ---
+    private const int MaxShotsPerFrame = 4;
+
+    /// <summary>
+    /// When the next shot may go: one interval after this shot's scheduled time while firing on (the rest of the
+    /// frame past it is kept, so the rated fire rate holds at any FPS), or one interval after now when the gun was
+    /// not firing (no shots are ever banked while the trigger rests).
+    /// </summary>
+    protected void ScheduleNextShot(float time)
+    {
+        float interval = 1f / Mathf.Max(0.01f, fireRate);
+        nextTimeToFire = time - nextTimeToFire <= Time.deltaTime ? nextTimeToFire + interval : time + interval;
+    }
     private void ResetRecoilPatternIfNeeded()
     {
         if (Time.time - lastRecoilShotTime > recoilPatternResetDelay)
@@ -553,6 +573,42 @@ public class GunController : WeaponController
 
         return recoilHorizontal * currentHorizontalRecoilDirection * randomStrength;
     }
+    /// <summary>
+    /// One shot's recoil (camera kick from the pattern, horizontal kick, weapon model kick, recovery timing):
+    /// the same for every gun, applied once per shot (a shotgun's pellets are one shot).
+    /// </summary>
+    protected void ApplyShotRecoil()
+    {
+        if (!applyRecoil)
+            return;
+
+        ResetRecoilPatternIfNeeded();
+
+        float verticalMultiplier =
+            EvaluateVerticalRecoilMultiplier();
+
+        float vertical =
+            recoilVertical * verticalMultiplier;
+
+        if (isAiming)
+        {
+            vertical *= aimRecoilMultiplier;
+        }
+
+        float horizontal =
+            GetHorizontalRecoilImpulse();
+
+        currentRecoil += new Vector2(
+            horizontal,
+            vertical
+        );
+
+        ApplyModelRecoil();
+
+        recoilShotIndex++;
+        lastRecoilShotTime = Time.time;
+    }
+
     protected virtual bool Fire()
     {
         if (bulletPrefab == null || attackPoint == null) return false;
@@ -564,34 +620,7 @@ public class GunController : WeaponController
         NotifyHUD();
 
         // Recoil
-        if (applyRecoil)
-        {
-            ResetRecoilPatternIfNeeded();
-
-            float verticalMultiplier =
-                EvaluateVerticalRecoilMultiplier();
-
-            float vertical =
-                recoilVertical * verticalMultiplier;
-
-            if (isAiming)
-            {
-                vertical *= aimRecoilMultiplier;
-            }
-
-            float horizontal =
-                GetHorizontalRecoilImpulse();
-
-            currentRecoil += new Vector2(
-                horizontal,
-                vertical
-            );
-
-            ApplyModelRecoil();
-
-            recoilShotIndex++;
-            lastRecoilShotTime = Time.time;
-        }
+        ApplyShotRecoil();
 
         // Spread
         Quaternion bulletRotation = attackPoint.rotation;
@@ -642,14 +671,12 @@ public class GunController : WeaponController
         if (currentFireMode != FireMode.Burst)
             return;
 
-        if (shotsRemainingInBurst <= 0)
-            return;
-
-        if (Time.time < nextTimeToFire)
-            return;
-
-        if (Fire())
+        // Several shots in one frame when the frame is longer than the interval (low FPS).
+        for (int shot = 0; shot < MaxShotsPerFrame && shotsRemainingInBurst > 0 && Time.time >= nextTimeToFire; shot++)
         {
+            if (!Fire())
+                return;
+
             shotsRemainingInBurst--;
 
             if (currentAmmo <= 0 || shotsRemainingInBurst <= 0)
@@ -658,7 +685,7 @@ public class GunController : WeaponController
                 return;
             }
 
-            nextTimeToFire = Time.time + 1f / fireRate;
+            ScheduleNextShot(Time.time);
         }
     }
     private bool ShouldRecoverRecoil()
@@ -684,6 +711,15 @@ public class GunController : WeaponController
         modelRecoilPosition += positionKick;
         modelRecoilRotation += rotationKick;
     }
+    /// <summary>Only the aiming view (camera zoom, gun model position): for a piece whose control has ended.</summary>
+    public void UpdateAimView()
+    {
+        if (attackPoint == null)
+            return;
+        UpdateAiming();
+        UpdateModelPosition();
+    }
+
     private void UpdateModelPosition()
     {
         transform.localPosition =

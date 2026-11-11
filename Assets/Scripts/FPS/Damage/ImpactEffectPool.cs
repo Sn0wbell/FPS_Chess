@@ -1,0 +1,120 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>
+/// Bullet impact effects (bullet holes, blood), pooled per prefab instead of one new object per hit:
+/// at most <c>capacity</c> of each kind at once (when full, the oldest one is reused), each shown for
+/// <c>lifetime</c> seconds. An effect stays stuck to what was hit; if that is destroyed, the effect goes with it
+/// and the pool simply forgets it.
+/// </summary>
+public static class ImpactEffectPool
+{
+    private sealed class Pool
+    {
+        public readonly List<PooledImpact> items = new();
+    }
+
+    private static readonly Dictionary<GameObject, Pool> pools = new();
+    private static Transform root;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        pools.Clear();
+        root = null;
+    }
+
+    public static void Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Transform attachTo, float lifetime, int capacity)
+    {
+        if (prefab == null || capacity <= 0)
+            return;
+
+        if (!pools.TryGetValue(prefab, out Pool pool))
+            pools[prefab] = pool = new Pool();
+
+        pool.items.RemoveAll(e => e == null); // destroyed together with what it was stuck to
+
+        float now = Time.time;
+        PooledImpact effect = null;
+        foreach (PooledImpact e in pool.items)
+            if (!e.gameObject.activeSelf || now >= e.ShownUntil)
+            {
+                effect = e; // free
+                break;
+            }
+
+        if (effect == null)
+        {
+            if (pool.items.Count < capacity)
+            {
+                effect = Create(prefab);
+                pool.items.Add(effect);
+            }
+            else
+            {
+                effect = pool.items[0]; // full: the oldest one is reused
+                foreach (PooledImpact e in pool.items)
+                    if (e.ShownUntil < effect.ShownUntil)
+                        effect = e;
+            }
+        }
+
+        Transform t = effect.transform;
+        t.SetParent(Root(), false);
+        t.SetPositionAndRotation(position, rotation);
+        t.localScale = prefab.transform.localScale;
+        if (attachTo != null)
+            t.SetParent(attachTo, true); // stays stuck to what was hit (as before)
+
+        effect.Show(now + Mathf.Max(0f, lifetime));
+    }
+
+    private static PooledImpact Create(GameObject prefab)
+    {
+        GameObject go = Object.Instantiate(prefab, Root());
+        go.SetActive(false);
+
+        // The effect's own self-destruct timer (e.g. DecalDestroyer) would destroy a pooled object: turned off
+        // before it ever starts (a disabled script's Start never runs).
+        foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
+            if (mb != null && mb.GetType().Name == "DecalDestroyer")
+                mb.enabled = false;
+
+        return go.AddComponent<PooledImpact>();
+    }
+
+    private static Transform Root()
+    {
+        if (root == null)
+            root = new GameObject("[ImpactEffectPool]").transform;
+        return root;
+    }
+}
+
+/// <summary>One pooled impact effect: plays from the start each time it is shown, hides itself when its time is up.</summary>
+public sealed class PooledImpact : MonoBehaviour
+{
+    private ParticleSystem[] particles;
+
+    public float ShownUntil { get; private set; }
+
+    public void Show(float until)
+    {
+        ShownUntil = until;
+        gameObject.SetActive(true);
+
+        particles ??= GetComponentsInChildren<ParticleSystem>(true);
+        foreach (ParticleSystem ps in particles)
+        {
+            if (ps == null) continue;
+            ps.Clear(true);
+            ps.Play(true);
+        }
+    }
+
+    private void Update()
+    {
+        if (Time.time >= ShownUntil)
+            gameObject.SetActive(false);
+    }
+}

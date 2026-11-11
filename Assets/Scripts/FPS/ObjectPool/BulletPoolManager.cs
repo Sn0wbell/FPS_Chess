@@ -54,6 +54,9 @@ public class BulletPoolManager : MonoBehaviour
         if (!allBullets.Contains(bullet))
             return;
 
+        if (!bullet.activeSelf)
+            return; // already back in the pool: never queued twice (it would be handed to two shots)
+
         bullet.SetActive(false);
         available.Enqueue(bullet);
     }
