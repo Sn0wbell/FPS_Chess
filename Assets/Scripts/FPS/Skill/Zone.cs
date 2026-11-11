@@ -115,8 +115,18 @@ public class Zone : MonoBehaviour
     // =========================
     // PUBLIC API
     // =========================
+    /// <summary>Its overlay slot was reserved in advance (ZoneOverlaySystem.Reserve); used by the next Activate.</summary>
+    public bool UsesReservedSlot { get; set; }
+
     public virtual void Activate(Vector3 pos, float radius, float duration)
     {
+        // Activated again while still shown: give its old slot back first (never leak one).
+        if (cageId >= 0)
+        {
+            ZoneOverlaySystem.Unregister(cageId);
+            cageId = -1;
+        }
+
         currentRadius = radius;
 
         transform.localScale = Vector3.one;
@@ -139,8 +149,10 @@ public class Zone : MonoBehaviour
             overlayMinY,
             overlayMaxY,
             baseCageColor,
-            overlayType
+            overlayType,
+            UsesReservedSlot
         );
+        UsesReservedSlot = false;
 
         lifeRoutine = StartCoroutine(LifeRoutine(duration));
 

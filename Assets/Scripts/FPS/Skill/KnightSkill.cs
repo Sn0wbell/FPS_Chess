@@ -88,7 +88,7 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
 
     /// <summary>Knock-back strength of this charge (used by the billiard-style clash).</summary>
     public float ImpulseForce => impulseForce;
-    public void ForceCancelMovement() => CleanupLeap();
+    public void ForceCancelMovement() => ForceCancel(); // through the skill: it also leaves the Active state
 
     /// <summary>Damage of a hit (mid-air, clash, landing blast).</summary>
     public float ImpactDamage => impactDamage;
@@ -237,8 +237,24 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
                 return;
             }
 
+            // A ceiling over the head (out of reach of the check above, cast from the body's middle): stops it too.
+            if ((flags & CollisionFlags.Above) != 0 && HitsCeiling(out Collider ceiling))
+            {
+                KnockOverRookWall(ceiling);
+                FailLeap();
+                return;
+            }
+
             // Real ground under the feet on the way down: land now. (A piece under the feet is a hit, not ground.)
             if (u > 0.5f && (flags & CollisionFlags.Below) != 0 && StandingOnGround())
+            {
+                EndLeap();
+                FinishActive();
+                return;
+            }
+
+            // Falling past the arc onto a piece (no ground under it): the leap ends there, it never hangs on.
+            if (freeFalling && (flags & CollisionFlags.Below) != 0 && PieceUnderFeet())
             {
                 EndLeap();
                 FinishActive();
@@ -333,6 +349,35 @@ public class KnightSkill : ActiveSkill, IDamageModifier, IMovementOverride, IOut
         if (blocked)
             obstacle = hit.collider;
         return blocked;
+    }
+
+    /// <summary>Something solid right over the head, facing down (a ceiling, a roof, a branch).</summary>
+    private bool HitsCeiling(out Collider ceiling)
+    {
+        ceiling = null;
+        float r = controller.radius * 0.95f;
+        Vector3 top = transform.position + controller.center + Vector3.up * Mathf.Max(0f, controller.height * 0.5f - controller.radius);
+        if (Physics.SphereCast(top, r, Vector3.up, out RaycastHit hit, controller.skinWidth + 0.1f, solidMask, QueryTriggerInteraction.Ignore)
+            && hit.normal.y < -0.5f)
+        {
+            ceiling = hit.collider;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Another piece right under the feet.</summary>
+    private bool PieceUnderFeet()
+    {
+        float r = controller.radius * 0.9f;
+        Vector3 feet = new Vector3(transform.position.x, controller.bounds.min.y, transform.position.z);
+        foreach (RaycastHit h in Physics.SphereCastAll(feet + Vector3.up * (r + 0.05f), r, Vector3.down, 0.2f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            ChessPieceFPSController p = SkillTargeting.PieceOf(h.collider);
+            if (p != null && p != fps)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>The leap ran into a rook wall (any side): it falls over, away from the knight.</summary>

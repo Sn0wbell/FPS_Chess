@@ -136,6 +136,7 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     // =========================
     [Header("Mouse Look")]
     [SerializeField] private float mouseSensitivity = 15f;
+    private const float MouseFrameScale = 1f / 60f;
     [SerializeField] private float minPitch = -80f;
     [SerializeField] private float maxPitch = 60f;
 
@@ -324,9 +325,31 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     }
 
     /// <summary>Health came back after a death (ResetHealth / RestoreBaseMaxHealth): the body is whole again.</summary>
+    /// <summary>A pawn clone breaking apart: its hidden body stops moving and blocking at once.</summary>
+    public void BreakCloneBody()
+    {
+        if (!IsPawnClone) return;
+        bodyBroken = true;
+        if (controller != null)
+            controller.enabled = false;
+    }
+
+    /// <summary>A pawn clone reused from the pool: whole again.</summary>
+    public void RestoreCloneBody()
+    {
+        if (!IsPawnClone) return;
+        bodyBroken = false;
+        if (controller != null)
+            controller.enabled = true;
+    }
+
     void HandleRevive()
     {
         isDeadRaw = false;
+        // Back to life at rest: not still flying from the knock-back it died in.
+        scatting = false;
+        scatterVelocityOwner = Vector3.zero;
+        verticalVelocity = 0f;
         if (!bodyBroken)
             return;
 
@@ -886,8 +909,10 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
         Vector2 delta = Mouse.current.delta.ReadValue();
 
-        float mouseX = delta.x * mouseSensitivity * Time.deltaTime;
-        float mouseY = delta.y * mouseSensitivity * Time.deltaTime;
+        // The mouse delta is already this frame's movement: scaled by a fixed 60 FPS frame (same feel as before
+        // at 60 FPS), not by deltaTime, so turning does not depend on the frame rate.
+        float mouseX = delta.x * mouseSensitivity * MouseFrameScale;
+        float mouseY = delta.y * mouseSensitivity * MouseFrameScale;
 
         recoilSequenceFrameStartPitch = pitch;
 

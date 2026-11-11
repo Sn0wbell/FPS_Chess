@@ -35,6 +35,14 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
     private const float SettleAngle = 2f;           // ...and turned less than this (deg): at rest, it becomes fixed
     private static PhysicsMaterial gripMaterial;   // high friction: it does not slide
 
+    // Fixed while lying / leaning on a piece or another wall: when that one goes, it falls again.
+    private readonly System.Collections.Generic.List<Collider> props = new();
+    private const float PropReach = 0.1f;           // touching within this (m)
+    private const float PropTilt = 20f;             // only a wall tilted more than this (deg) can rest on something
+
+    /// <summary>Counts its uses from the pool: a reference kept from an older use can tell it is another wall now.</summary>
+    public int Activation { get; private set; }
+
     public Team Team => team;
     public bool IsToppled { get; private set; }
     /// <summary>Knocked over by a skill (the queen's push, the king's pull): lying on its side.</summary>
@@ -71,6 +79,8 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
     public void Activate(Vector3 position, Quaternion rotation, float lifetime)
     {
         PieceDeathEffect.Restore(gameObject); // reused from the pool: visible again
+        Activation++;
+        props.Clear();
         currentHealth = maxHealth;
         IsToppled = false;
         Vector3 f = rotation * Vector3.forward;
@@ -117,8 +127,13 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
 
     private void FixedUpdate()
     {
-        if (rb == null || rb.isKinematic)
+        if (rb == null)
             return;
+        if (rb.isKinematic)
+        {
+            WakeIfPropGone();
+            return;
+        }
 
         // Settled (fallen, leaned, neighbours nudged): it becomes fixed, so no piece can shove it any more
         // (a character controller pushes any free body, however heavy). Knocking it over frees it again.
@@ -131,6 +146,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
             if (moved < SettleDistance && turned < SettleAngle)
             {
                 rb.isKinematic = true;
+                RecordProps();
                 return;
             }
             stillTime = 0f;
@@ -152,6 +168,52 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
         Quaternion lean = Quaternion.LookRotation(f, Vector3.Cross(f, across));
         if (Quaternion.Angle(rb.rotation, lean) > 0.01f)
             rb.rotation = lean;
+    }
+
+    /// <summary>Pieces / walls it rests on as it is fixed (tilted, touching it below its middle).</summary>
+    private void RecordProps()
+    {
+        props.Clear();
+        if (Vector3.Angle(transform.up, Vector3.up) <= PropTilt)
+            return; // standing: held by the ground
+
+        Bounds b = col.bounds;
+        foreach (Collider c in Physics.OverlapBox(b.center, b.extents + Vector3.one * PropReach, Quaternion.identity, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (c == null || c == col)
+                continue;
+            bool isPiece = SkillTargeting.PieceOf(c) != null;
+            WallSegment other = isPiece ? null : c.GetComponentInParent<WallSegment>();
+            if ((isPiece || (other != null && other != this)) && Holds(c))
+                props.Add(c);
+        }
+    }
+
+    /// <summary>Touching it below its middle: it holds the wall up.</summary>
+    private bool Holds(Collider c)
+    {
+        Vector3 p = col.ClosestPoint(c.bounds.center);
+        Vector3 q = SkillTargeting.PieceOf(c) != null ? SkillTargeting.ClosestPointOnBody(c, p) : c.ClosestPoint(p);
+        return Vector3.Distance(p, q) <= PropReach && p.y < col.bounds.center.y - 0.05f;
+    }
+
+    /// <summary>What it rested on moved away, died or broke: it is free and falls again (then settles again).</summary>
+    private void WakeIfPropGone()
+    {
+        if (props.Count == 0)
+            return;
+        foreach (Collider c in props)
+        {
+            if (c != null && c.enabled && c.gameObject.activeInHierarchy && Holds(c))
+                continue;
+            props.Clear();
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            stillTime = 0f;
+            settleFromPos = rb.position;
+            settleFromRot = rb.rotation;
+            return;
+        }
     }
 
     /// <summary>
@@ -227,6 +289,7 @@ public class WallSegment : MonoBehaviour, IDamageable, ITeamOwned
         rb.constraints = RigidbodyConstraints.FreezeAll;
         IsToppled = false;
         IsLoose = false;
+        props.Clear();
 
         if (owner != null)
             owner.ReturnToPool(this);

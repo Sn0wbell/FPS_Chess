@@ -37,6 +37,34 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
 
     public IReadOnlyList<RedZone> Zones => zones;
 
+    private static readonly List<GrenadeVolley> live = new();
+
+    /// <summary>
+    /// Every red zone still waiting to explode, the zones of a queen who died included (her own lists are
+    /// cleared then): for the AI.
+    /// </summary>
+    public static IEnumerable<(Vector3 center, float radius)> PendingZones()
+    {
+        foreach (var v in live)
+        {
+            if (v == null || v.exploded) continue;
+            foreach (var rz in v.zones)
+                if (rz != null)
+                    yield return (rz.transform.position, v.settings.radius);
+        }
+    }
+
+    public static bool IsInAnyPendingZone(Vector3 pos)
+    {
+        foreach (var (center, radius) in PendingZones())
+        {
+            Vector3 d = pos - center;
+            if (new Vector2(d.x, d.z).magnitude <= radius)
+                return true;
+        }
+        return false;
+    }
+
     public static GrenadeVolley Create(ChessPieceFPSController owner, Settings settings, float explodeAt,
         Action<RedZone> returnZone, Action onExploded)
     {
@@ -49,6 +77,7 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
         volley.explodeAt = explodeAt;
         volley.returnZone = returnZone;
         volley.onExploded = onExploded;
+        live.Add(volley);
         return volley;
     }
 
@@ -145,6 +174,24 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
                 settings.radius, settings.explosionForce, settings.bounceFactor));
         }
 
+        ReleaseZones();
+
+        onExploded?.Invoke();
+        Destroy(gameObject);
+    }
+
+    /// <summary>The match is over (or the arena cleared): these grenades never explode; their zones go away.</summary>
+    public void Defuse()
+    {
+        if (exploded) return;
+        exploded = true;
+        ReleaseZones();
+        onExploded = null;
+        Destroy(gameObject);
+    }
+
+    private void ReleaseZones()
+    {
         foreach (var rz in zones)
         {
             if (rz == null) continue;
@@ -157,10 +204,9 @@ public class GrenadeVolley : MonoBehaviour, ITeamOwned
             }
         }
         zones.Clear();
-
-        onExploded?.Invoke();
-        Destroy(gameObject);
     }
+
+    private void OnDestroy() => live.Remove(this);
 
     /// <summary>A wall or the terrain between the blast (just above the zone's surface) and the piece's body.</summary>
     private bool BlockedByWallOrTerrain(Vector3 zoneCenter, ChessPieceFPSController target)

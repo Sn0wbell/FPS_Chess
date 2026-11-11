@@ -75,7 +75,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
     public bool IsActive => dashActive;
     public Vector3 GetMovementDelta(float deltaTime) => Vector3.zero;
     public Vector3 GetChargeDirection() => dashDir;
-    public void ForceCancelMovement() => StopDash();
+    public void ForceCancelMovement() => ForceCancel(); // through the skill: it also leaves the Active state
 
     /// <summary>Damage this charge deals in a clash.</summary>
     public float ImpactDamage => impactDamage;
@@ -113,15 +113,23 @@ public class RookSkill : ActiveSkill, IMovementOverride
 
         CacheSegmentLength();
 
+        // No direction or no room to start: nothing happens, no cooldown is spent and the old walls stay.
+        // (An enemy wall ahead does not count: the charge rams it when it gets there. The rook's own old walls
+        // do not count either: they go first, so they never block the new dash.)
+        // Only the first step is checked (this frame's step): an obstacle further ahead just stops the dash there.
+        float firstStep = Mathf.Max(dashSpeed * Time.deltaTime, 0.05f);
+        if (dashDir.sqrMagnitude < 0.01f ||
+            (BlockedAhead(controller.transform.position, dashDir, firstStep, out RaycastHit startBlocker) && !IsEnemyWall(startBlocker) && !IsOwnWall(startBlocker)))
+        {
+            AbortActivation();
+            return;
+        }
+
         // Old walls go first, so they never block the new dash.
         ClearActiveSegments();
 
-        // No direction or no room to start: nothing happens and no cooldown is spent.
-        // (An enemy wall ahead does not count: the charge rams it when it gets there.)
-        // Only the first step is checked: an obstacle further ahead just stops the dash there.
-        float firstStep = Mathf.Max(dashSpeed * ctx.deltaTime, 0.05f);
-        if (dashDir.sqrMagnitude < 0.01f ||
-            (BlockedAhead(controller.transform.position, dashDir, firstStep, out RaycastHit startBlocker) && !IsEnemyWall(startBlocker)))
+        // Something right behind those old walls still blocks the first step: nothing happens, as before.
+        if (BlockedAhead(controller.transform.position, dashDir, firstStep, out startBlocker) && !IsEnemyWall(startBlocker))
         {
             AbortActivation();
             return;
@@ -434,7 +442,7 @@ public class RookSkill : ActiveSkill, IMovementOverride
         foreach (Collider c in Physics.OverlapBox(center, half, t.rotation, enemyMask, QueryTriggerInteraction.Ignore))
         {
             ChessPieceFPSController piece = SkillTargeting.PieceOf(c);
-            if (piece == null || piece == fps || !moved.Add(piece))
+            if (piece == null || piece == fps || !SkillTargeting.IsAlive(piece) || !moved.Add(piece))
                 continue;
 
             var pieceCc = piece.GetComponent<CharacterController>();
@@ -446,8 +454,9 @@ public class RookSkill : ActiveSkill, IMovementOverride
             if (!IsFreeFor(pieceCc, target))
             {
                 Vector3 other = TargetBeside(piece, right, across, -side, half.x, radius);
-                if (IsFreeFor(pieceCc, other))
-                    target = other;
+                if (!IsFreeFor(pieceCc, other))
+                    continue; // no room on either side: it stays where it is (never warped into the terrain)
+                target = other;
             }
             piece.WarpPosition(target);
         }
@@ -472,7 +481,10 @@ public class RookSkill : ActiveSkill, IMovementOverride
     {
         if (!dashActive) return;
 
-        HandleWallSpawn(); // the last whole wall that fits, if this frame's step made room for it
+        // The last whole wall that fits, if this frame's step made room for it (not while the scene / arena is torn
+        // down: nothing is spawned or moved then).
+        if (!IsTearingDown)
+            HandleWallSpawn();
         dashActive = false;
         if (fps != null)
             fps.SetGravityEnabled(this, true);
@@ -512,6 +524,12 @@ public class RookSkill : ActiveSkill, IMovementOverride
         // A walkable slope is climbed like when walking.
         float slopeLimit = controller != null ? controller.slopeLimit : 45f;
         return Vector3.Angle(hit.normal, Vector3.up) > slopeLimit;
+    }
+
+    private bool IsOwnWall(RaycastHit hit)
+    {
+        WallSegment wall = hit.collider != null ? hit.collider.GetComponentInParent<WallSegment>() : null;
+        return wall != null && activeSegments.Contains(wall);
     }
 
     private bool IsEnemyWall(RaycastHit hit)

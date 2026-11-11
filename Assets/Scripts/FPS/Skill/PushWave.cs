@@ -58,6 +58,19 @@ public class PushWave : MonoBehaviour
         return wave;
     }
 
+    /// <summary>Side of the queen who cast it (null if unknown).</summary>
+    public Team? OwnerTeam => markTeam;
+
+    /// <summary>The match is over (or the arena cleared): it stops at once, pushing nobody else.</summary>
+    public void Stop()
+    {
+        if (done) return;
+        done = true;
+        Detach();
+        DespawnSphere();
+        Destroy(gameObject);
+    }
+
     /// <summary>The queen is gone or her skill ended: the wave goes on by itself, nobody is told about it.</summary>
     public void Detach()
     {

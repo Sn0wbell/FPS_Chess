@@ -83,6 +83,7 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
     private const float MaxArcParameter = 1.5f;   // no surface found up to here: it falls on under gravity
     private const float LandingSearchBelow = 50f; // the landing surface is searched this far below the lower of piece / king
     private const float MoveSubStep = 0.1f;
+    private const float MinArcRise = 0.5f;        // a pull down from high up still rises a little first
 
     private Zone pullZoneInstance;
     private Zone gravityZoneInstance;
@@ -117,6 +118,7 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         public float height;
         public float duration;
         public float elapsed;
+        public float lastU;         // where it was on the arc last frame
         public float endU;          // where the arc meets a surface (precomputed)
         public bool hasEnd;
         public bool endIsWall;      // ...a wall / ceiling there: it stops and drops
@@ -279,7 +281,8 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         if (offset.magnitude <= 0.001f || flat.sqrMagnitude < 1e-6f)
             return false;
 
-        Vector3 end = center + flat.normalized * (Mathf.Clamp01(offset.magnitude / pullRadius) * gravityRadius);
+        // Its share of the pull radius, measured flat (a piece high above / below the king is never pushed away).
+        Vector3 end = center + flat.normalized * (Mathf.Clamp01(flat.magnitude / pullRadius) * gravityRadius);
         float horizontal = Vector2.Distance(new Vector2(start.x, start.z), new Vector2(end.x, end.z));
         if (horizontal < 0.05f)
             return false;
@@ -291,6 +294,11 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
         end.y = Physics.Raycast(new Vector3(end.x, top, end.z), Vector3.down, out RaycastHit ground, top - bottom, obstacleLayer, QueryTriggerInteraction.Ignore)
             ? ground.point.y
             : center.y;
+
+        // Pulled down from high up close by: the arc still starts upward (never straight into what it stands on).
+        float drop = start.y - end.y;
+        if (drop > 0f)
+            height = Mathf.Max(height, drop * 0.25f + MinArcRise);
 
         CharacterController cc = target.GetComponent<CharacterController>();
         s = new PullSession
@@ -452,12 +460,17 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
 
             // Along the arc in small steps: touching down on the way down lands it there; head-on into
             // something new (a wall raised meanwhile) releases it; otherwise it slides along.
-            Vector3 delta = goal - target.transform.position;
+            // Sub-steps follow the arc itself (not the chord between two frames): the same flight at any frame rate.
+            bool onArc = !s.freeFalling;
+            Vector3 from = target.transform.position;
+            Vector3 delta = goal - from;
             int subSteps = Mathf.Max(1, Mathf.CeilToInt(delta.magnitude / MoveSubStep));
-            Vector3 step = delta / subSteps;
             bool stopped = false;
             for (int i = 0; i < subSteps && !stopped; i++)
             {
+                float k = (i + 1f) / subSteps;
+                Vector3 next = onArc ? ArcPoint(s, Mathf.Lerp(s.lastU, u, k)) : from + delta * k;
+                Vector3 step = next - target.transform.position;
                 CollisionFlags flags = cc.Move(step);
                 if ((flags & CollisionFlags.Below) != 0 && velocity.y < 0f)
                     stopped = true;
@@ -465,6 +478,8 @@ public class KingSkill : ActiveSkill, IHeldPieceKnockHandler
                     stopped = true;
             }
 
+            if (onArc)
+                s.lastU = u;
             pullVelocity[target] = velocity; // real speed along the arc
 
             if (stopped || (s.hasEnd && s.elapsed / Mathf.Max(0.01f, s.duration) >= s.endU))

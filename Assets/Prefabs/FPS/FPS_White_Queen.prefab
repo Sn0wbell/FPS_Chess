@@ -384,7 +384,7 @@ MonoBehaviour:
   grenadeDropHeight: 3
   grenadeMaxDrop: 30
   pushRadius: 15
-  pushForce: 25
+  pushForce: 35
   pushMinForceShare: 0.5
   bounceFactor: 0.65
   pushSphereScaleSpeed: 25

@@ -85,8 +85,8 @@ public abstract class ActiveSkill : BaseSkill
     {
         if (state != SkillState.Active) return;
         forceCanceled = true;
-        OnForceCancel(context);
-        EnterCooldown();
+        try { OnForceCancel(context); }
+        finally { EnterCooldown(); } // even if a cleanup throws, the skill never stays Active
     }
 
     /// <summary>Destroyed / disabled while active: release every effect on other pieces.</summary>

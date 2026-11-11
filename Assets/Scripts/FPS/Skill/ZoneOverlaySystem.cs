@@ -7,7 +7,25 @@ public static class ZoneOverlaySystem
     public const int MAX_CAGE = 32;
 
     /// <summary>How many more zones can be shown right now.</summary>
-    public static int FreeSlots => MAX_CAGE - cages.Count;
+    public static int FreeSlots => MAX_CAGE - cages.Count - reserved;
+
+    // Slots promised to zones that will be shown a moment later (a queen's barrage, zone by zone).
+    private static int reserved;
+
+    /// <summary>Holds up to <paramref name="count"/> free slots for zones registered later; returns how many it got.</summary>
+    public static int Reserve(int count)
+    {
+        int n = Mathf.Clamp(count, 0, Mathf.Max(0, FreeSlots));
+        reserved += n;
+        return n;
+    }
+
+    /// <summary>Gives back reserved slots that will not be used.</summary>
+    public static void ReleaseReservation(int count)
+    {
+        if (count > 0)
+            reserved = Mathf.Max(0, reserved - count);
+    }
 
     private static bool dirty;
     private static int lastFlushFrame = -1;
@@ -18,6 +36,7 @@ public static class ZoneOverlaySystem
     {
         cages.Clear();
         nextId = 1;
+        reserved = 0;
         dirty = false;
         lastFlushFrame = -1;
         UploadToShader();
@@ -75,9 +94,13 @@ public static class ZoneOverlaySystem
         float minY,
         float maxY,
         Color color,
-        ZoneOverlayType type
+        ZoneOverlayType type,
+        bool usesReservedSlot = false
     )
     {
+        if (usesReservedSlot)
+            ReleaseReservation(1); // its slot was held for it: it always fits
+
         if (cages.Count >= MAX_CAGE)
         {
             Debug.LogWarning($"ZoneOverlaySystem: {MAX_CAGE} zones already shown; this zone is not drawn.");

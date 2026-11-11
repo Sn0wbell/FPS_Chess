@@ -130,7 +130,10 @@ public class ArenaController : MonoBehaviour
     private void OnDestroy()
     {
         if (Current == this)
+        {
             Current = null;
+            RevealSystem.LocalViewerTeam = null; // no player view any more
+        }
         ClearArena();
     }
     void Update()
@@ -608,6 +611,10 @@ public class ArenaController : MonoBehaviour
     {
         matchEnded = true;
 
+        // The losers' skill effects still running on their own (a dead queen's grenades / shockwave) stop here:
+        // nothing can hurt the winners once the match is decided.
+        StopSkillEffects(except: winner);
+
         // The match is over: the player's piece takes no more input.
         bool playerWon = winner == Team.White; // the player always plays White in the arena
         if (playerPiece)
@@ -630,8 +637,21 @@ public class ArenaController : MonoBehaviour
     // =========================
     public IReadOnlyCollection<ChessPieceFPSController> GetAliveBlack() => aliveBlack;
 
+    /// <summary>Grenades not exploded yet and shockwaves still expanding are removed (all, or all but one side's).</summary>
+    private static void StopSkillEffects(Team? except = null)
+    {
+        foreach (var volley in FindObjectsByType<GrenadeVolley>(FindObjectsSortMode.None))
+            if (volley != null && (!except.HasValue || volley.Team != except.Value))
+                volley.Defuse();
+        foreach (var wave in FindObjectsByType<PushWave>(FindObjectsSortMode.None))
+            if (wave != null && (!except.HasValue || wave.OwnerTeam != except.Value))
+                wave.Stop();
+    }
+
     public void ClearArena()
     {
+        StopSkillEffects();       // nothing left over hits the next arena's pieces
+        RevealSystem.ClearAll();
         matchEnded = false;
         if (resultOverlay != null)
             resultOverlay.Hide();

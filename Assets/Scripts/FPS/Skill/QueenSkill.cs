@@ -126,6 +126,7 @@ public class QueenSkill : ActiveSkill
     private const float MaxWaitForLanding = 3f; // safety: a piece knocked off the map never blocks the barrage
 
     private readonly List<RedZone> activeRedZones = new();
+    private int reservedSlots; // overlay slots held for zones not fired yet
     private readonly Queue<RedZone> redZonePool = new();
 
     private readonly List<ChessPieceFPSController> pushedPieces = new();
@@ -184,6 +185,10 @@ public class QueenSkill : ActiveSkill
         LockAttack(false);
         CleanupRedZones();
         AbortAllPushes();
+
+        // Zones never fired: their reserved overlay slots go back.
+        ZoneOverlaySystem.ReleaseReservation(reservedSlots);
+        reservedSlots = 0;
     }
 
     // =========================
@@ -258,6 +263,9 @@ public class QueenSkill : ActiveSkill
         barrageStarted = true;
 
         List<Vector3> positions = CalculateGrenadePositions();
+        // Slots were reserved for the whole budget: keep one per zone that will be shown, give the rest back.
+        ZoneOverlaySystem.ReleaseReservation(reservedSlots - positions.Count);
+        reservedSlots = positions.Count;
         if (positions.Count == 0)
         {
             FinishActive(); // nobody to target
@@ -291,8 +299,14 @@ public class QueenSkill : ActiveSkill
             float untilExplosion = (positions.Count - 1 - i) * interval + redZoneWarningTime;
 
             var rz = GetRedZone();
+            bool reservedForIt = reservedSlots > 0;
+            if (reservedForIt)
+                reservedSlots--;
+            if (rz == null && reservedForIt)
+                ZoneOverlaySystem.ReleaseReservation(1);
             if (rz != null)
             {
+                rz.UsesReservedSlot = reservedForIt;
                 rz.HeightRange = heightRange; // drawn exactly as big and as high as it hurts
                 rz.Activate(positions[i], redZoneRadius, untilExplosion);
                 activeRedZones.Add(rz);
@@ -323,7 +337,10 @@ public class QueenSkill : ActiveSkill
 
         int maxTargets = 3;
         int maxAttemptsPerZone = 10;
-        int budget = Mathf.Min(grenadeCount, Mathf.Max(0, ZoneOverlaySystem.FreeSlots)); // never more zones than can be shown
+        // Never more zones than can be shown: their slots are held now (the zones appear one by one while firing,
+        // another caster must not take them meanwhile).
+        int budget = ZoneOverlaySystem.Reserve(grenadeCount);
+        reservedSlots = budget;
 
         float minSpacing = redZoneRadius * 2.0f;
         float queenSafeRadius = redZoneRadius * 2.0f;

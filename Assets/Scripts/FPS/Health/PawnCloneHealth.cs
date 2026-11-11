@@ -71,6 +71,11 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
 
         PieceDeathEffect.Restore(gameObject); // a reused clone that broke apart last time
         gameObject.SetActive(true);
+        if (fps != null)
+        {
+            fps.RestoreCloneBody();
+            RevealSystem.Forget(fps); // a new decoy: not marked like the last one
+        }
         DisableWeaponDamage();
 
         // Thrown like the real pawn (same flight, same landing).
@@ -115,9 +120,13 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
 
         dying = true;
 
-        // Defeated: it breaks apart like a real piece.
+        // Defeated: it breaks apart like a real piece (its hidden body no longer moves nor blocks anyone).
         if (shatter)
+        {
             PieceDeathEffect.Shatter(gameObject);
+            if (fps != null)
+                fps.BreakCloneBody();
+        }
 
         if (destroyVFX)
             Instantiate(destroyVFX, transform.position, Quaternion.identity);
@@ -131,6 +140,8 @@ public class PawnCloneHealth : MonoBehaviour, IDamageable
     private void ReturnToPool()
     {
         CancelInvoke();
+        if (ArenaController.Current != null && fps != null)
+            ArenaController.Current.UnregisterClone(this, fps.Team);
         if (pool != null) pool.Return(this);
         else gameObject.SetActive(false);
     }

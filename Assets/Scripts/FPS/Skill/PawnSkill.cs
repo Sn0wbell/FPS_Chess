@@ -210,6 +210,8 @@ public class PawnSkill : ActiveSkill
             Instantiate(spawnVFX, pos, Quaternion.identity);
 
         activeClones.Add(clone);
+        if (ArenaController.Current != null && ctx.fps != null)
+            ArenaController.Current.RegisterClone(clone, ctx.fps.Team); // removed with the arena
     }
 
     // =========================
@@ -221,8 +223,8 @@ public class PawnSkill : ActiveSkill
             return;
 
         ChessPieceFPSController killer = info.source.GetComponentInParent<ChessPieceFPSController>();
-        if (killer == null || killer == fps || killer.IsPawnClone || SkillTargeting.IsAlly(fps, killer))
-            return;
+        if (killer == null || killer == fps || killer.IsPawnClone || killer.IsDead || SkillTargeting.IsAlly(fps, killer))
+            return; // (a dead killer, e.g. a dead queen's grenade or a shot still flying, is not revealed)
 
         RevealSystem.Reveal(killer, fps.Team, revealSeconds);
     }

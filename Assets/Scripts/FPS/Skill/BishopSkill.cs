@@ -107,6 +107,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
     private Transform trail;
     private LineRenderer trailLR;
     private WallSegment hookedWall;
+    private int hookedWallActivation; // the use of that wall that was hooked (a pooled wall may be reused elsewhere)
 
 
     private Bounds arenaBounds;
@@ -198,6 +199,9 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
                 ClassifyHit(blocker);
                 ropeHead = targetPos;
                 t = 1f;
+                // The rope now ends here: a retract starts from this point (no jump back along the old length).
+                totalDistance = Mathf.Max(0.05f, Vector3.Distance(ropeLogicOriginWS, targetPos));
+                ropeTraveled = totalDistance;
             }
 
             if (!IsInsideArena(ropeHead))
@@ -235,7 +239,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
                 // (neither is pulled to the other).
                 if (mode == GrappleMode.PullWall)
                 {
-                    if (hookedWall != null)
+                    if (HookedWallStillThere())
                         hookedWall.Topple(transform.position, wallToppleForce);
                     isRetracting = true;
                     return;
@@ -468,6 +472,10 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
         return true;
     }
 
+    /// <summary>The hooked wall is still the one hooked (not broken and reused elsewhere from the pool meanwhile).</summary>
+    private bool HookedWallStillThere() =>
+        hookedWall != null && hookedWall.gameObject.activeInHierarchy && hookedWall.Activation == hookedWallActivation;
+
     /// <summary>A rook wall raised across the hooked rope cuts it.</summary>
     private bool RopeCutByRookWall(Vector3 from, Vector3 to)
     {
@@ -479,7 +487,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
         foreach (RaycastHit hit in Physics.RaycastAll(from, d / len, len - 0.05f, obstacleMask | wallMask, QueryTriggerInteraction.Ignore))
         {
             WallSegment wall = hit.collider.GetComponentInParent<WallSegment>();
-            if (wall != null && wall != hookedWall)
+            if (wall != null && (wall != hookedWall || wall.Activation != hookedWallActivation))
                 return true;
         }
         return false;
@@ -602,6 +610,7 @@ public class BishopSkill : ActiveSkill, IMovementOverride, IHeldPieceKnockHandle
         {
             mode = GrappleMode.PullWall;
             hookedWall = wall;
+            hookedWallActivation = wall.Activation;
             hasValidTarget = true;
             return;
         }

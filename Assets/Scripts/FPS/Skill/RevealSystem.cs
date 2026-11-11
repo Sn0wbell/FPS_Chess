@@ -39,10 +39,17 @@ public static class RevealSystem
 
         var key = (target, toTeam);
         float until = Time.time + seconds;
-        if (!revealedUntil.TryGetValue(key, out float current) || current < until)
+        bool alreadyRevealed = revealedUntil.TryGetValue(key, out float current) && current > Time.time;
+        if (!alreadyRevealed || current < until)
             revealedUntil[key] = until;
+        else
+            return; // already marked for longer: nothing changes
 
-        OnRevealed?.Invoke(target, toTeam, seconds);
+        if (!alreadyRevealed)
+        {
+            PruneIfLarge();
+            OnRevealed?.Invoke(target, toTeam, seconds); // newly revealed (a mark kept up every frame fires it once)
+        }
 
         if (LocalViewerTeam.HasValue && LocalViewerTeam.Value == toTeam)
         {
@@ -51,6 +58,30 @@ public static class RevealSystem
                 highlight = target.gameObject.AddComponent<RevealHighlight>();
             highlight.Show(toTeam);
         }
+    }
+
+    /// <summary>A new arena: nobody is revealed any more.</summary>
+    public static void ClearAll() => revealedUntil.Clear();
+
+    /// <summary>A reused pawn clone: it does not inherit the reveal of its last use.</summary>
+    public static void Forget(ChessPieceFPSController target)
+    {
+        if (target == null) return;
+        foreach (Team team in (Team[])Enum.GetValues(typeof(Team)))
+            revealedUntil.Remove((target, team));
+    }
+
+    /// <summary>Drops expired marks and destroyed pieces once the list grows (it is never cleared mid-arena).</summary>
+    private static void PruneIfLarge()
+    {
+        if (revealedUntil.Count < 64)
+            return;
+        var stale = new List<(ChessPieceFPSController, Team)>();
+        foreach (var kv in revealedUntil)
+            if (kv.Key.Item1 == null || kv.Value <= Time.time)
+                stale.Add(kv.Key);
+        foreach (var k in stale)
+            revealedUntil.Remove(k);
     }
 
     public static bool IsRevealed(ChessPieceFPSController target, Team toTeam) =>
@@ -101,7 +132,7 @@ public sealed class RevealHighlight : MonoBehaviour
 
         foreach (MeshRenderer r in GetComponentsInChildren<MeshRenderer>())
         {
-            if (r == null || r.gameObject.name == OverlayName) continue;
+            if (r == null || !r.enabled || r.gameObject.name == OverlayName) continue; // hidden parts (a broken body) stay hidden
             MeshFilter filter = r.GetComponent<MeshFilter>();
             if (filter == null || filter.sharedMesh == null) continue;
 
@@ -112,7 +143,7 @@ public sealed class RevealHighlight : MonoBehaviour
 
         foreach (SkinnedMeshRenderer r in GetComponentsInChildren<SkinnedMeshRenderer>())
         {
-            if (r == null || r.gameObject.name == OverlayName || r.sharedMesh == null) continue;
+            if (r == null || !r.enabled || r.gameObject.name == OverlayName || r.sharedMesh == null) continue;
 
             GameObject overlay = NewOverlay(r.transform);
             var copy = overlay.AddComponent<SkinnedMeshRenderer>();

@@ -59,8 +59,12 @@ public class PawnClonePool
             return;
 
         clone.CancelAll();
-        if (root != null)
-            clone.transform.SetParent(root);
+        if (root == null)
+        {
+            Object.Destroy(clone.gameObject); // its pawn (and the pool) is gone: nothing will reuse it
+            return;
+        }
+        clone.transform.SetParent(root);
         pool.Push(clone);
         inPool.Add(clone);
     }
