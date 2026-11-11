@@ -33,6 +33,8 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7757752806595002845}
+  - {fileID: 2834259191690469363}
+  - {fileID: 4731968863036082811}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &4231510202387083812
@@ -98,7 +100,7 @@ MonoBehaviour:
   weaponName: AUG
   weaponType: 0
   weaponModelPrefab: {fileID: 6186390211808446944}
-  weaponDisplayScale: 0.68
+  weaponDisplayScale: 0.6
   firePointDistance: 1.8
   fireRate: 11.35
   damage: 32
@@ -222,6 +224,27 @@ MonoBehaviour:
   bulletLifeTime: 3
   muzzleFlash: {fileID: 7803391886346092661}
   fireSound: {fileID: 0}
+  boltPart: {fileID: 7156235595894585662}
+  boltBackPoint: {fileID: 2834259191690469363}
+  boltLiftPoint: {fileID: 0}
+  boltCycle: 0
+  boltCycleTime: 0.08
+  manualActionDelay: 0.15
+  boltCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  boltLockOnEmpty: 0
+  boltRackOnReload: 1
+  boltRackTime: 0.35
+  shellPrefab: {fileID: 8489818951931819000, guid: 04e079bf1b3b1f54d9b4c4885c7c52a3, type: 3}
+  shellEjectPoint: {fileID: 4731968863036082811}
+  shellEjectVelocity: {x: 1.5, y: 1, z: 0}
+  shellEjectRandomness: 0.2
+  shellSpin: 720
+  shellLifetime: 3
   modelRecoilPositionKick: {x: 0, y: 0.005, z: -0.035}
   modelRecoilRotationKick: {x: -2, y: 0.35, z: 0.5}
   modelRecoilPositionRecovery: 18
@@ -317,6 +340,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &1940983983977192867
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4731968863036082811}
+  m_Layer: 10
+  m_Name: ShellEjectPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4731968863036082811
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1940983983977192867}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.078, y: 0.044, z: 0.5568}
+  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6351935080887199803}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2530512953500232933
 GameObject:
   m_ObjectHideFlags: 0
@@ -407,6 +461,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &2892756962572446709
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2834259191690469363}
+  m_Layer: 10
+  m_Name: BoltBackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2834259191690469363
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2892756962572446709}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: 2.4264695e-24, w: 1}
+  m_LocalPosition: {x: -0.008860003, y: 0.023500003, z: 1.089}
+  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6351935080887199803}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3980979641985970453
 GameObject:
   m_ObjectHideFlags: 0

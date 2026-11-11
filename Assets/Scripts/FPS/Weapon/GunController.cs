@@ -88,6 +88,45 @@ public class GunController : WeaponController
     [SerializeField] protected ParticleSystem muzzleFlash;
     [SerializeField] protected AudioSource fireSound;
 
+    [Header("Bolt / Charging Handle")]
+    [Tooltip("The moving part (bolt, charging handle, or a shotgun's pump), at its rest pose. Empty: no bolt motion.")]
+    [SerializeField] protected Transform boltPart;
+    [Tooltip("An empty object where the bolt is fully back (position and rotation), best under the same parent as the bolt.")]
+    [SerializeField] protected Transform boltBackPoint;
+    [Tooltip("Optional (bolt-action): where the handle has turned up, before it is pulled back. The bolt then goes " +
+             "rest -> here -> back point and returns the same way (turn up, pull, push, turn down).")]
+    [SerializeField] protected Transform boltLiftPoint;
+    [Tooltip("Auto: snaps back and home very fast after each shot. Manual (pump / bolt-action): worked by hand over " +
+             "exactly the time between two shots.")]
+    [SerializeField] protected BoltCycleMode boltCycle = BoltCycleMode.Auto;
+    [Tooltip("Auto: how long one cycle takes (s); never more than 80% of the time between two shots.")]
+    [SerializeField] protected float boltCycleTime = 0.06f;
+    [Tooltip("Manual: share of the time between two shots before the action is worked (the shooter rides the recoil first).")]
+    [SerializeField, Range(0f, 0.9f)] protected float manualActionDelay = 0.15f;
+    [Tooltip("Optional shape of a cycle: time 0..1 through it -> 0 at rest .. 1 at the back point. Empty: the built-in " +
+             "shape of the mode (Auto: snap back, slam home; Manual: pull, hold a moment, push).")]
+    [SerializeField] protected AnimationCurve boltCurve = new AnimationCurve();
+    [Tooltip("The last round fired: the bolt stays back until the reload is done, then closes.")]
+    [SerializeField] protected bool boltLockOnEmpty = false;
+    [Tooltip("The bolt is pulled back and let go once at the end of each reload (if it was not locked back).")]
+    [SerializeField] protected bool boltRackOnReload = false;
+    [Tooltip("How long racking the bolt at the end of a reload takes (s).")]
+    [SerializeField] protected float boltRackTime = 0.35f;
+
+    [Header("Shell Ejection")]
+    [Tooltip("The spent shell thrown out when the bolt is fully back (any model; purely visual). Empty: no shells.")]
+    [SerializeField] protected GameObject shellPrefab;
+    [Tooltip("Where shells come out (the ejection port), oriented as the shell should leave. Its axes give the speed's direction.")]
+    [SerializeField] protected Transform shellEjectPoint;
+    [Tooltip("The shell's speed (m/s) along the eject point's own axes (x right, y up, z forward).")]
+    [SerializeField] protected Vector3 shellEjectVelocity = new Vector3(1.5f, 1f, 0f);
+    [Tooltip("Random change of each shell's speed (share, 0..1).")]
+    [SerializeField, Range(0f, 1f)] protected float shellEjectRandomness = 0.2f;
+    [Tooltip("How fast shells tumble (degrees/s).")]
+    [SerializeField] protected float shellSpin = 720f;
+    [Tooltip("How long a shell stays before it is gone (s).")]
+    [SerializeField] protected float shellLifetime = 3f;
+
     // Internal state
     protected float nextTimeToFire;
     protected float nextBurstTime;
@@ -384,6 +423,7 @@ public class GunController : WeaponController
 
         UpdateCrosshairPoints();
         UpdateModelPosition();
+        UpdateBolt(Time.time);
 
         isShooting = false;
 
@@ -662,6 +702,7 @@ public class GunController : WeaponController
         // Effects
         if (muzzleFlash != null) muzzleFlash.Play();
         if (fireSound != null) fireSound.Play();
+        CycleBolt();
 
         return true;
     }
@@ -718,7 +759,268 @@ public class GunController : WeaponController
             return;
         UpdateAiming();
         UpdateModelPosition();
+        UpdateBolt(Time.time);
     }
+
+    // --- BOLT / SHELLS (visual only: never changes fire rate, damage or ammo) ---
+    private bool boltRestKnown;
+    private Vector3 boltRestPosition;
+    private Quaternion boltRestRotation;
+    private bool boltCycling;
+    private float boltCycleStart;
+    private float boltCycleDuration;
+    private float boltCycleFrom;
+    private BoltCycleMode boltCycleShape;
+    private float boltPeak;
+    private bool boltLockAtPeak;
+    private bool boltLocked;
+    private float boltApplied;
+    private bool shellPending;
+    private bool boltReloadSeen;
+    private bool boltReloadDone;
+
+    private bool HasBolt => boltPart != null && boltBackPoint != null;
+
+    /// <summary>The bolt is held back (locked open on an empty gun until the reload is done).</summary>
+    public bool IsBoltLockedBack => boltLocked;
+
+    /// <summary>One shot: the bolt cycles (Auto: very fast; Manual: over exactly the time to the next shot).</summary>
+    protected void CycleBolt()
+    {
+        if (shellPending)
+            EjectShell(); // the shot before's shell, its bolt not back yet (several shots in one frame)
+
+        if (!HasBolt)
+        {
+            EjectShell(); // no bolt to wait for: out at once
+            return;
+        }
+
+        float interval = 1f / Mathf.Max(0.01f, fireRate);
+        float now = Time.time;
+        if (boltCycle == BoltCycleMode.Manual)
+        {
+            float delay = interval * Mathf.Clamp(manualActionDelay, 0f, 0.9f);
+            StartBoltCycle(now + delay, interval - delay, 0f, BoltCycleMode.Manual);
+        }
+        else
+        {
+            StartBoltCycle(now, Mathf.Min(Mathf.Max(0f, boltCycleTime), interval * BoltMotion.AutoMaxShareOfInterval), 0f, BoltCycleMode.Auto);
+        }
+        boltLocked = false;
+        boltLockAtPeak = boltLockOnEmpty && currentAmmo <= 0;
+        shellPending = shellPrefab != null && shellEjectPoint != null;
+    }
+
+    private void StartBoltCycle(float start, float duration, float from, BoltCycleMode shape)
+    {
+        boltCycling = true;
+        boltCycleStart = start;
+        boltCycleDuration = duration;
+        boltCycleFrom = from;
+        boltCycleShape = shape;
+        boltPeak = BoltMotion.PeakProgress(boltCurve, shape);
+    }
+
+    private void UpdateBolt(float now)
+    {
+        if (!HasBolt)
+            return;
+        if (!boltRestKnown)
+        {
+            boltRestPosition = boltPart.localPosition;
+            boltRestRotation = boltPart.localRotation;
+            boltRestKnown = true;
+            boltApplied = 0f;
+        }
+
+        UpdateReloadBolt(now);
+
+        float back = 0f;
+        if (boltLocked)
+        {
+            back = 1f;
+        }
+        else if (boltCycling)
+        {
+            float elapsed = boltCycleDuration > 0f ? (now - boltCycleStart) / boltCycleDuration : 1f;
+            float progress = Mathf.LerpUnclamped(boltCycleFrom, 1f, Mathf.Max(0f, elapsed));
+            if (shellPending && progress >= boltPeak)
+                EjectShell(); // fully back: the shell flies out
+            if (boltLockAtPeak && progress >= boltPeak)
+            {
+                boltCycling = false;
+                boltLocked = true;
+                back = 1f;
+            }
+            else if (progress >= 1f)
+            {
+                boltCycling = false;
+            }
+            else
+            {
+                back = BoltMotion.Shape(boltCurve, boltCycleShape, progress);
+            }
+        }
+
+        if (back == 0f && boltApplied == 0f)
+            return; // at rest, already shown there
+        ApplyBoltPose(back);
+    }
+
+    /// <summary>During a reload: a locked-back bolt closes as the reload ends; else (if set) the bolt is racked once.</summary>
+    private void UpdateReloadBolt(float now)
+    {
+        if (!isReloading)
+        {
+            boltReloadSeen = false;
+            if (boltLocked && currentAmmo > 0)
+            {
+                // Loaded without its closing seen (the reload ended within one frame): it closes now.
+                float peak = BoltMotion.PeakProgress(boltCurve, BoltCycleMode.Manual);
+                boltLocked = false;
+                boltLockAtPeak = false;
+                StartBoltCycle(now, Mathf.Max(0f, boltRackTime) * (1f - peak), peak, BoltCycleMode.Manual);
+            }
+            return;
+        }
+        if (!boltReloadSeen)
+        {
+            boltReloadSeen = true;
+            boltReloadDone = false;
+        }
+        if (boltReloadDone)
+            return;
+
+        float end = reloadStartTime + reloadTime;
+        float rack = Mathf.Clamp(boltRackTime, 0f, Mathf.Max(0f, reloadTime));
+        if (boltLocked)
+        {
+            float peak = BoltMotion.PeakProgress(boltCurve, BoltCycleMode.Manual);
+            float closing = rack * (1f - peak);
+            if (now >= end - closing)
+            {
+                boltLocked = false;
+                boltLockAtPeak = false;
+                StartBoltCycle(end - closing, closing, peak, BoltCycleMode.Manual);
+                boltReloadDone = true;
+            }
+        }
+        else if (boltRackOnReload)
+        {
+            if (now >= end - rack)
+            {
+                if (shellPending)
+                    EjectShell();
+                boltLockAtPeak = false;
+                StartBoltCycle(end - rack, rack, 0f, BoltCycleMode.Manual);
+                boltReloadDone = true;
+            }
+        }
+        else
+        {
+            boltReloadDone = true;
+        }
+    }
+
+    private void ApplyBoltPose(float back)
+    {
+        Transform parent = boltPart.parent;
+        Vector3 backPos = parent != null ? parent.InverseTransformPoint(boltBackPoint.position) : boltBackPoint.position;
+        Quaternion backRot = parent != null ? Quaternion.Inverse(parent.rotation) * boltBackPoint.rotation : boltBackPoint.rotation;
+        bool hasLift = boltLiftPoint != null;
+        Vector3 liftPos = Vector3.zero;
+        Quaternion liftRot = Quaternion.identity;
+        if (hasLift)
+        {
+            liftPos = parent != null ? parent.InverseTransformPoint(boltLiftPoint.position) : boltLiftPoint.position;
+            liftRot = parent != null ? Quaternion.Inverse(parent.rotation) * boltLiftPoint.rotation : boltLiftPoint.rotation;
+        }
+
+        BoltMotion.Pose(back, boltRestPosition, boltRestRotation, hasLift, liftPos, liftRot, backPos, backRot,
+            out Vector3 pos, out Quaternion rot);
+        boltPart.localPosition = pos;
+        boltPart.localRotation = rot;
+        boltApplied = back;
+    }
+
+    private void EjectShell()
+    {
+        shellPending = false;
+        if (shellPrefab == null || shellEjectPoint == null)
+            return;
+        float randomness = Mathf.Clamp01(shellEjectRandomness);
+        Vector3 local = shellEjectVelocity * Random.Range(1f - randomness, 1f + randomness)
+                        + Random.insideUnitSphere * (shellEjectVelocity.magnitude * randomness * 0.5f);
+        EjectedShell.Throw(shellPrefab, shellEjectPoint.position, shellEjectPoint.rotation,
+            shellEjectPoint.TransformDirection(local), shellSpin, shellLifetime);
+    }
+
+    /// <summary>Right-click the component: plays one bolt cycle (in the editor too, without Play) to check the back point.</summary>
+    [ContextMenu("Test Bolt Cycle")]
+    private void TestBoltCycle()
+    {
+        if (!HasBolt)
+        {
+            Debug.LogWarning($"{name}: set Bolt Part and Bolt Back Point first.");
+            return;
+        }
+        if (Application.isPlaying)
+        {
+            CycleBolt();
+            return;
+        }
+#if UNITY_EDITOR
+        EditorPreviewBoltCycle();
+#endif
+    }
+
+#if UNITY_EDITOR
+    private UnityEditor.EditorApplication.CallbackFunction boltPreview;
+
+    private void EditorPreviewBoltCycle()
+    {
+        if (boltPreview != null)
+            UnityEditor.EditorApplication.update -= boltPreview;
+
+        boltRestPosition = boltPart.localPosition;
+        boltRestRotation = boltPart.localRotation;
+        boltRestKnown = true;
+        boltApplied = 0f;
+        boltLocked = false;
+        boltLockAtPeak = false;
+        GameObject shell = shellPrefab;
+        shellPrefab = null; // no shells thrown into the edited scene
+        CycleBolt();
+        shellPrefab = shell;
+        shellPending = false;
+        float offset = Time.time - (float)UnityEditor.EditorApplication.timeSinceStartup; // edit-time clock as Time.time
+        float end = boltCycleStart + boltCycleDuration;
+
+        boltPreview = () =>
+        {
+            if (this == null || boltPart == null || boltBackPoint == null)
+            {
+                UnityEditor.EditorApplication.update -= boltPreview;
+                boltPreview = null;
+                return;
+            }
+            float now = (float)UnityEditor.EditorApplication.timeSinceStartup + offset;
+            UpdateBolt(now);
+            UnityEditor.SceneView.RepaintAll();
+            if (now >= end)
+            {
+                boltPart.localPosition = boltRestPosition; // exactly back where it was
+                boltPart.localRotation = boltRestRotation;
+                boltRestKnown = false;
+                boltCycling = false;
+                UnityEditor.EditorApplication.update -= boltPreview;
+                boltPreview = null;
+            }
+        };
+        UnityEditor.EditorApplication.update += boltPreview;
+    }
+#endif
 
     private void UpdateModelPosition()
     {

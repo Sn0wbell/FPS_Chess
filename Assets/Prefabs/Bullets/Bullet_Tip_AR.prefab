@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: -1745542457697913255}
   - component: {fileID: -6126694394886854921}
   m_Layer: 11
-  m_Name: Bullet_01
+  m_Name: Bullet_Tip_AR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -162,8 +162,8 @@ MonoBehaviour:
   highlight: 1
   ownSideColor: {r: 1, g: 0.78431374, b: 0, a: 1}
   otherSideColor: {r: 1, g: 0.78431374, b: 0, a: 1}
-  tracerWidth: 0.05
-  tracerMinPixels: 1.9
+  tracerWidth: 0.0689
+  tracerMinPixels: 2.28
   tracerLength: 5
   tracerSpeed: 90
   tracerMaxLag: 1

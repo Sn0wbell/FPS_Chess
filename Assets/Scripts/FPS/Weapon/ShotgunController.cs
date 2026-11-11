@@ -97,6 +97,7 @@ public class ShotgunController : GunController
         // -----------------------------
         if (muzzleFlash != null) muzzleFlash.Play();
         if (fireSound != null) fireSound.Play();
+        CycleBolt();
 
         // -----------------------------
         // Consume one-shot modifier
