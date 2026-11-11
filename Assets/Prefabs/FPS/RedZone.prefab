@@ -53,3 +53,6 @@ MonoBehaviour:
   pulseSpeed: 3
   pulseMinAlpha: 0.35
   pulseMaxAlpha: 0.75
+  decalMaterial: {fileID: 2100000, guid: 464c06aee03a4bca807052fe84b79c6b, type: 2}
+  decalDepth: 2
+  decalMaxAngle: 60
