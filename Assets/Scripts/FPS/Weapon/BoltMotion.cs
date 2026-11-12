@@ -25,6 +25,9 @@ public static class BoltMotion
     private const float ManualHoldUntil = 0.55f; // ...held back a moment, pushed home over the rest
     private const int PeakSamples = 100;
 
+    /// <summary>Manual (built-in shape): the progress where the bolt starts being pushed home after its hold.</summary>
+    public static float ManualPushStart => ManualHoldUntil;
+
     /// <summary>
     /// How far back the bolt is at <paramref name="progress"/> through its cycle: <paramref name="custom"/> when it
     /// has keys (time 0..1 -> 0 rest .. 1 back point), else the built-in shape of <paramref name="mode"/>.

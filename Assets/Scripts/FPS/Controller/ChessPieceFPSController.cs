@@ -169,6 +169,11 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
     [SerializeField] private Transform weaponHolder;
     [SerializeField] private Transform weaponBlockedPosition;
     [SerializeField] private Vector3 weaponHolderOffset = Vector3.zero;
+    // Reloading with the gun's own reload motion: the holder follows the camera every frame (as when free), eased in
+    // from wherever it was (e.g. lowered against a wall) by this offset, fading out.
+    private bool weaponInReloadPose;
+    private Vector3 reloadHolderOffsetPos;
+    private Quaternion reloadHolderOffsetRot = Quaternion.identity;
     [SerializeField] private LayerMask weaponBlockLayer;
     [SerializeField] private float weaponAdjustSpeed = 10f;
 
@@ -783,7 +788,16 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
                 defaultWeaponLocalRot = normalWeaponRotation;
             }
-            if (weaponBlockDelayTime <= 0f && !currentWeapon.GetBlocked())
+            if (weaponInReloadPose)
+            {
+                float k = 1f - Mathf.Exp(-Mathf.Max(weaponAdjustSpeed, 0f) * Time.deltaTime);
+                reloadHolderOffsetPos = Vector3.Lerp(reloadHolderOffsetPos, Vector3.zero, k);
+                reloadHolderOffsetRot = Quaternion.Slerp(reloadHolderOffsetRot, Quaternion.identity, k);
+                currentWeaponLocalPos = defaultWeaponLocalPos + reloadHolderOffsetPos;
+                currentWeaponLocalRot = defaultWeaponLocalRot * reloadHolderOffsetRot;
+                weaponHolder.SetLocalPositionAndRotation(currentWeaponLocalPos, currentWeaponLocalRot);
+            }
+            else if (weaponBlockDelayTime <= 0f && !currentWeapon.GetBlocked())
             {
                 currentWeaponLocalPos = defaultWeaponLocalPos;
 
@@ -1438,8 +1452,17 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
 
         bool blocked = attackPointBlocked || weaponColliderBlocked;
 
-        if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
         if (!blocked && IsActionLocked) blocked = true; // locked by a skill (e.g. the queen firing): weapon held in the blocked pose
+        // Reloading a gun with its own reload motion: still blocked (no firing), but shown by that motion, not lowered.
+        bool reloadPose = !blocked && currentGun != null && currentGun.IsReloading() && currentGun.HasReloadMotion;
+        if (!blocked && currentGun != null && currentGun.IsReloading()) blocked = true;
+        bool lowered = blocked && !reloadPose;
+        if (reloadPose && !weaponInReloadPose)
+        {
+            reloadHolderOffsetPos = currentWeaponLocalPos - defaultWeaponLocalPos;
+            reloadHolderOffsetRot = Quaternion.Inverse(defaultWeaponLocalRot) * currentWeaponLocalRot;
+        }
+        weaponInReloadPose = reloadPose;
 
         if (blocked != currentWeapon.GetBlocked())
         {
@@ -1450,10 +1473,10 @@ public class ChessPieceFPSController : MonoBehaviour, ITeamOwned
             weaponBlockDelayTime = adjustSpeed > 0f ? 3f / adjustSpeed : 0f;
         }
 
-        Vector3 targetPos = blocked ? weaponBlockedPosition.localPosition : defaultWeaponLocalPos;
-        Quaternion targetRot = blocked ? weaponBlockedPosition.localRotation : defaultWeaponLocalRot;
+        Vector3 targetPos = lowered ? weaponBlockedPosition.localPosition : defaultWeaponLocalPos;
+        Quaternion targetRot = lowered ? weaponBlockedPosition.localRotation : defaultWeaponLocalRot;
         
-        if(currentWeaponLocalPos != targetPos || currentWeaponLocalRot != targetRot)
+        if (!reloadPose && (currentWeaponLocalPos != targetPos || currentWeaponLocalRot != targetRot)) // reload pose: placed with the camera
         {
             float adjustSpeed = weaponAdjustSpeed;
             if (blocked) adjustSpeed = weaponAdjustSpeed * 0.15f;

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 1600527697215611828}
   - component: {fileID: 2944032944537313457}
   - component: {fileID: 9116261181252673022}
+  - component: {fileID: 3495579795962032275}
   m_Layer: 10
   m_Name: AR_M4A1
   m_TagString: Untagged
@@ -33,6 +34,13 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2417317263064367510}
+  - {fileID: 5734416547063215474}
+  - {fileID: 7037501008989582955}
+  - {fileID: 4578884088577080534}
+  - {fileID: 3237068923909155616}
+  - {fileID: 8921601482678964451}
+  - {fileID: 6189887266445175104}
+  - {fileID: 2049345384100929735}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &1600527697215611828
@@ -99,7 +107,7 @@ MonoBehaviour:
   weaponType: 0
   weaponModelPrefab: {fileID: 6217668136843807935}
   weaponDisplayScale: 0.5
-  firePointDistance: 1.85
+  firePointDistance: 2.1
   fireRate: 13.5
   damage: 31
   range: 140
@@ -214,7 +222,7 @@ MonoBehaviour:
   aimScopeFOV: 20
   normalFOV: 60
   aimSpeed: 9
-  aimNoScopeOffset: {x: -0.31, y: 0.0515, z: -0.05}
+  aimNoScopeOffset: {x: -0.31, y: 0.07, z: -0.05}
   aimScopeOffset: {x: 0, y: 0, z: 0}
   smoothSpreadSpeed: 11
   bulletPrefab: {fileID: 8489818951931819000, guid: 680aa6d352c3f084abebee4970363974, type: 3}
@@ -222,11 +230,203 @@ MonoBehaviour:
   bulletLifeTime: 3
   muzzleFlash: {fileID: 670890541876661462}
   fireSound: {fileID: 0}
+  boltPart: {fileID: 6799811813179407626}
+  boltBackPoint: {fileID: 7037501008989582955}
+  boltLiftPoint: {fileID: 0}
+  boltCycle: 0
+  boltCycleTime: 0.08
+  manualActionDelay: 0.15
+  boltCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  boltLockOnEmpty: 0
+  boltMovesWhenFiring: 0
+  shellPrefab: {fileID: 8489818951931819000, guid: 04e079bf1b3b1f54d9b4c4885c7c52a3, type: 3}
+  shellEjectPoint: {fileID: 4578884088577080534}
+  shellEjectVelocity: {x: 1.5, y: 1, z: 0}
+  shellEjectRandomness: 0.2
+  shellSpin: 720
+  shellLifetime: 3
+  shellScale: 0.985
   modelRecoilPositionKick: {x: 0, y: 0.005, z: -0.035}
   modelRecoilRotationKick: {x: -2, y: 0.35, z: 0.5}
   modelRecoilPositionRecovery: 18
   modelRecoilRotationRecovery: 20
   modelRecoilAimMultiplier: 0.6
+--- !u!114 &3495579795962032275
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 261594425375421623}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66dffd6388764158bf36c4fae25477f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GunReloadMotion
+  steps:
+  - label: Tilt the gun
+    part: {fileID: 2059944816767002281}
+    action: 0
+    when: 0
+    target: {fileID: 5734416547063215474}
+    from: 0
+    to: 0.19
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Magazine out
+    part: {fileID: 5183102051337001848}
+    action: 0
+    when: 0
+    target: {fileID: 3237068923909155616}
+    from: 0.19
+    to: 0.24
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (empty)
+    part: {fileID: 5183102051337001848}
+    action: 2
+    when: 1
+    target: {fileID: 0}
+    from: 0.2
+    to: 0.2
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Old magazine thrown (empty)
+    part: {fileID: 5183102051337001848}
+    action: 4
+    when: 1
+    target: {fileID: 0}
+    from: 0.24
+    to: 0.24
+    ease: 0
+    dropVelocity: {x: -5, y: -0.5, z: 1}
+    dropLifetime: 5
+    dropSpin: 450
+  - label: Old magazine put away (rounds left)
+    part: {fileID: 5183102051337001848}
+    action: 0
+    when: 2
+    target: {fileID: 6189887266445175104}
+    from: 0.24
+    to: 0.31
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (rounds left)
+    part: {fileID: 5183102051337001848}
+    action: 2
+    when: 2
+    target: {fileID: 0}
+    from: 0.31
+    to: 0.31
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine below (rounds left)
+    part: {fileID: 5183102051337001848}
+    action: 3
+    when: 2
+    target: {fileID: 8921601482678964451}
+    from: 0.48
+    to: 0.48
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine below (empty)
+    part: {fileID: 5183102051337001848}
+    action: 3
+    when: 1
+    target: {fileID: 8921601482678964451}
+    from: 0.37
+    to: 0.37
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine in (rounds left)
+    part: {fileID: 5183102051337001848}
+    action: 1
+    when: 2
+    target: {fileID: 0}
+    from: 0.48
+    to: 0.73
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine in (empty)
+    part: {fileID: 5183102051337001848}
+    action: 1
+    when: 1
+    target: {fileID: 0}
+    from: 0.37
+    to: 0.62
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Turn the gun for the bolt (empty)
+    part: {fileID: 2059944816767002281}
+    action: 0
+    when: 1
+    target: {fileID: 2049345384100929735}
+    from: 0.62
+    to: 0.78
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Rack the bolt (empty)
+    part: {fileID: 2059944816767002281}
+    action: 5
+    when: 1
+    target: {fileID: 0}
+    from: 0.78
+    to: 0.84
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back (rounds left)
+    part: {fileID: 2059944816767002281}
+    action: 1
+    when: 2
+    target: {fileID: 0}
+    from: 0.73
+    to: 1
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back (empty)
+    part: {fileID: 2059944816767002281}
+    action: 1
+    when: 1
+    target: {fileID: 0}
+    from: 0.84
+    to: 1
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  perRoundSteps: []
+  perRoundFrom: 0.2
+  perRoundTo: 0.8
+  maxRepeats: 8
 --- !u!1 &1241341712713903952
 GameObject:
   m_ObjectHideFlags: 0
@@ -317,6 +517,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &1268223088787957513
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6189887266445175104}
+  m_Layer: 10
+  m_Name: MagStow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6189887266445175104
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1268223088787957513}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.209065, y: 0.056019, z: -0.252684, w: 0.94303}
+  m_LocalPosition: {x: -0.242511, y: -0.39788, z: 0.284604}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: 25, y: 0, z: -30}
 --- !u!1 &1464109939796685976
 GameObject:
   m_ObjectHideFlags: 0
@@ -498,6 +729,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &1918576885260137874
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7037501008989582955}
+  m_Layer: 10
+  m_Name: BoltBackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7037501008989582955
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1918576885260137874}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.089638, z: 0.147174}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3602909730275115546
 GameObject:
   m_ObjectHideFlags: 0
@@ -678,6 +940,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &4508774358433423955
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8921601482678964451}
+  m_Layer: 10
+  m_Name: MagIn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8921601482678964451
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4508774358433423955}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.142717, y: 0, z: 0, w: 0.989764}
+  m_LocalPosition: {x: 0, y: -0.411041, z: 0.621605}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: -16.4, y: 0, z: 0}
 --- !u!1 &4730733036575792197
 GameObject:
   m_ObjectHideFlags: 0
@@ -768,6 +1061,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &4836206213445100708
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3237068923909155616}
+  m_Layer: 10
+  m_Name: MagOut
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3237068923909155616
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4836206213445100708}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.069756, y: 0, z: 0, w: 0.997564}
+  m_LocalPosition: {x: 0, y: -0.175, z: 0.527977}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: 8, y: 0, z: 0}
 --- !u!1 &4932585145395532717
 GameObject:
   m_ObjectHideFlags: 0
@@ -1039,6 +1363,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &5576697063889272919
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4578884088577080534}
+  m_Layer: 10
+  m_Name: ShellEjectPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4578884088577080534
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5576697063889272919}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.039, y: 0.04, z: 0.516622}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6217668136843807935
 GameObject:
   m_ObjectHideFlags: 0
@@ -1064,7 +1419,7 @@ Transform:
   m_GameObject: {fileID: 6217668136843807935}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.019, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -5960,6 +6315,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &8592264069516491366
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2049345384100929735}
+  m_Layer: 10
+  m_Name: RackTurn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2049345384100929735
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8592264069516491366}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.188628, y: 0.113973, z: 0.342467, w: 0.913316}
+  m_LocalPosition: {x: -0.050882, y: -0.044798, z: 0.021001}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: -25, y: 5, z: 40}
 --- !u!1 &8837567957703331073
 GameObject:
   m_ObjectHideFlags: 0
@@ -6050,6 +6436,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &8937427713940550552
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5734416547063215474}
+  m_Layer: 10
+  m_Name: ReloadTilt
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5734416547063215474
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8937427713940550552}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.127592, y: -0.009337, z: 0.165345, w: -0.977903}
+  m_LocalPosition: {x: 0.026, y: 0.051, z: -0.014}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2059944816767002281}
+  m_LocalEulerAnglesHint: {x: -14.3, y: 3.6, z: -19.6}
 --- !u!1 &8991160078064899421
 GameObject:
   m_ObjectHideFlags: 0

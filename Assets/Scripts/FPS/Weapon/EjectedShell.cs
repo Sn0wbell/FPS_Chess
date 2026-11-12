@@ -38,7 +38,7 @@ public sealed class EjectedShell : MonoBehaviour
 
     /// <summary>Throws a shell of <paramref name="shellPrefab"/> from <paramref name="position"/>.</summary>
     public static EjectedShell Throw(GameObject shellPrefab, Vector3 position, Quaternion rotation, Vector3 velocity,
-        float spinDegreesPerSecond, float lifetime)
+        float spinDegreesPerSecond, float lifetime, Vector3? worldScale = null)
     {
         if (shellPrefab == null)
             return null;
@@ -51,6 +51,8 @@ public sealed class EjectedShell : MonoBehaviour
             s = Create(shellPrefab);
 
         s.transform.SetPositionAndRotation(position, rotation);
+        if (worldScale.HasValue)
+            s.baseScale = worldScale.Value; // a copy of a part in a scaled gun: its size as seen
         s.transform.localScale = s.baseScale;
         s.velocity = velocity;
         s.spinAxis = Random.onUnitSphere;
