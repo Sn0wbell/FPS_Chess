@@ -239,6 +239,16 @@ public class GunController : WeaponController
     {
         return currentAmmo;
     }
+
+    /// <summary>
+    /// The rounds loaded are thrown away (e.g. a short ammo belt flicked off during the reload): none left, so the
+    /// reload then loads a whole magazine from the rounds carried.
+    /// </summary>
+    public void DiscardLoadedRounds()
+    {
+        currentAmmo = 0;
+        NotifyHUD();
+    }
     public int GetTotalAmmo()
     {
         return totalAmmo;

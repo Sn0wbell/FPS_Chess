@@ -34,7 +34,15 @@ public enum ReloadCondition
     /// <summary>Only when the magazine was empty (e.g. the empty magazine thrown away, the bolt racked).</summary>
     Empty,
     /// <summary>Only when rounds were left (e.g. the magazine put away; a round is still chambered).</summary>
-    NotEmpty
+    NotEmpty,
+    /// <summary>Only when at least "Rounds" were left (e.g. a belt still running into its box).</summary>
+    RoundsAtLeast,
+    /// <summary>Only when fewer than "Rounds" were left, none too (e.g. a short belt out of its box: thrown away).</summary>
+    RoundsFewerThan,
+    /// <summary>Only when the gun's ammo belt still runs into its box (rounds left in the box: it is put away).</summary>
+    BeltInBox,
+    /// <summary>Only when the gun's ammo belt is all out of its box (a short belt: thrown away, the box empty).</summary>
+    BeltOffBox
 }
 
 public enum ReloadEase
@@ -56,6 +64,8 @@ public class ReloadStep
     public ReloadAction action = ReloadAction.MoveTo;
     [Tooltip("When it plays: every reload, only when the magazine was empty, or only when rounds were left.")]
     public ReloadCondition when = ReloadCondition.Always;
+    [Tooltip("Rounds At Least / Rounds Fewer Than: the number of rounds left it compares with.")]
+    [Min(0)] public int rounds = 1;
     [Tooltip("MoveTo: where it goes. Show: where it appears (empty: where it is). An empty object placed in the gun; " +
              "for the gun itself, a child of the gun showing its tilted pose.")]
     public Transform target;
@@ -115,6 +125,8 @@ public class GunReloadMotion : MonoBehaviour
     }
 
     private GunController gun;
+    private AmmoBeltDisplay belt;  // an ammo belt, if the gun has one (Belt In Box / Belt Off Box)
+    private bool beltInBox;        // as the reload started
     private readonly Dictionary<Transform, PartState> parts = new Dictionary<Transform, PartState>();
     private readonly Dictionary<(Transform, Transform), (Vector3, Quaternion)> childTargets = new Dictionary<(Transform, Transform), (Vector3, Quaternion)>();
     private readonly List<Entry> timeline = new List<Entry>();
@@ -131,6 +143,7 @@ public class GunReloadMotion : MonoBehaviour
             return;
         initialized = true;
         gun = GetComponent<GunController>();
+        belt = GetComponentInChildren<AmmoBeltDisplay>(true);
         parts.Clear();
         childTargets.Clear();
         Capture(steps);
@@ -192,28 +205,42 @@ public class GunReloadMotion : MonoBehaviour
             return;
         }
         if (!playing)
-            Begin(Mathf.Min(gun.GetMagazineSize() - gun.GetCurrentAmmo(), gun.GetTotalAmmo()), gun.GetCurrentAmmo() <= 0);
+            Begin(Mathf.Min(gun.GetMagazineSize() - gun.GetCurrentAmmo(), gun.GetTotalAmmo()), gun.GetCurrentAmmo());
 
         Evaluate(gun.GetReloadProgress(), Time.time, false);
     }
 
-    private void Begin(int rounds, bool empty)
+    /// <summary><paramref name="rounds"/>: rounds to load; <paramref name="left"/>: rounds left as the reload starts.</summary>
+    private void Begin(int rounds, int left)
     {
         playing = true;
         lastProgress = -1f;
-        BuildTimeline(rounds, empty);
+        beltInBox = belt != null && belt.RunsIntoBox(left);
+        BuildTimeline(rounds, left);
     }
 
-    private static bool Plays(ReloadStep s, bool empty)
-        => s != null && s.part != null &&
-           (s.when == ReloadCondition.Always || (s.when == ReloadCondition.Empty) == empty);
+    private bool Plays(ReloadStep s, int left)
+    {
+        if (s == null || s.part == null)
+            return false;
+        switch (s.when)
+        {
+            case ReloadCondition.BeltInBox: return belt != null && beltInBox;
+            case ReloadCondition.BeltOffBox: return belt != null && !beltInBox;
+            case ReloadCondition.Empty: return left <= 0;
+            case ReloadCondition.NotEmpty: return left > 0;
+            case ReloadCondition.RoundsAtLeast: return left >= s.rounds;
+            case ReloadCondition.RoundsFewerThan: return left < s.rounds;
+            default: return true;
+        }
+    }
 
-    private void BuildTimeline(int rounds, bool empty)
+    private void BuildTimeline(int rounds, int left)
     {
         timeline.Clear();
         if (steps != null)
             foreach (ReloadStep s in steps)
-                if (Plays(s, empty))
+                if (Plays(s, left))
                     timeline.Add(new Entry { step = s, from = s.from, to = Mathf.Max(s.from, s.to) });
 
         int n = Mathf.Clamp(rounds, 1, Mathf.Max(1, maxRepeats));
@@ -223,7 +250,7 @@ public class GunReloadMotion : MonoBehaviour
             float slot = (Mathf.Max(perRoundFrom, perRoundTo) - start) / n;
             for (int i = 0; i < n; i++)
                 foreach (ReloadStep s in perRoundSteps)
-                    if (Plays(s, empty))
+                    if (Plays(s, left))
                         timeline.Add(new Entry
                         {
                             step = s,
@@ -263,8 +290,8 @@ public class GunReloadMotion : MonoBehaviour
         {
             if (e.from > progress)
                 break;
-            if (!parts.TryGetValue(e.step.part, out PartState p))
-                continue;
+            if (!parts.TryGetValue(e.step.part, out PartState p) || p.part == null)
+                continue; // (destroyed: e.g. its prefab reloaded in the editor)
             float k = e.to > e.from ? Ease(e.step.ease, Mathf.Clamp01((progress - e.from) / (e.to - e.from))) : 1f;
             switch (e.step.action)
             {
@@ -338,6 +365,8 @@ public class GunReloadMotion : MonoBehaviour
 
     private void Apply(PartState p)
     {
+        if (p.part == null)
+            return; // destroyed (e.g. its prefab reloaded in the editor): nothing left to put back
         if (gun != null && p.part == gun.transform)
             gun.SetReloadPoseOffset(p.position - p.restPosition, Quaternion.Inverse(p.restRotation) * p.rotation); // on top of aim / recoil
         else
@@ -361,6 +390,54 @@ public class GunReloadMotion : MonoBehaviour
             return;
         foreach (Renderer r in copy.GetComponentsInChildren<Renderer>(true))
             r.enabled = true; // the copy shows even if the part is hidden at that moment
+        MatchPieces(s.part, copy.transform); // ...with the same pieces on and where they are now (a belt's rounds), even if pooled
+        AmmoBeltDisplay beltCopy = copy.GetComponent<AmmoBeltDisplay>(), beltPart = s.part.GetComponent<AmmoBeltDisplay>();
+        if (beltCopy != null && beltPart != null)
+            beltCopy.ThrownFrom(beltPart); // a belt thrown: each round goes on as it was moving (then the throw on top)
+        foreach (PartState p in parts.Values)
+        {
+            // ...but without a part inside it hidden by a step (a belt already thrown away on its own).
+            if (p.part == s.part || !p.hidden || p.prop || !p.part.IsChildOf(s.part))
+                continue;
+            Transform inCopy = Corresponding(s.part, copy.transform, p.part);
+            if (inCopy != null)
+                foreach (Renderer r in inCopy.GetComponentsInChildren<Renderer>(true))
+                    r.enabled = false;
+        }
+    }
+
+    /// <summary><paramref name="t"/> (inside <paramref name="source"/>) in a copy of it: by the same child indices.</summary>
+    private static Transform Corresponding(Transform source, Transform copy, Transform t)
+    {
+        var path = new List<int>();
+        for (Transform c = t; c != source; c = c.parent)
+        {
+            if (c == null)
+                return null;
+            path.Add(c.GetSiblingIndex());
+        }
+        Transform o = copy;
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            if (path[i] >= o.childCount)
+                return null;
+            o = o.GetChild(path[i]);
+        }
+        return o;
+    }
+
+    private static void MatchPieces(Transform source, Transform copy)
+    {
+        if (source.childCount != copy.childCount)
+            return;
+        for (int i = 0; i < source.childCount; i++)
+        {
+            Transform a = source.GetChild(i), b = copy.GetChild(i);
+            if (b.gameObject.activeSelf != a.gameObject.activeSelf)
+                b.gameObject.SetActive(a.gameObject.activeSelf);
+            b.SetLocalPositionAndRotation(a.localPosition, a.localRotation);
+            MatchPieces(a, b);
+        }
     }
 
     /// <summary>Every part back at rest and shown as it was (the reload is over, or was cut short).</summary>
@@ -398,13 +475,18 @@ public class GunReloadMotion : MonoBehaviour
 
     /// <summary>Right-click the component: plays the reload of an empty magazine (without Play), all rounds missing.</summary>
     [ContextMenu("Test Reload (Empty)")]
-    private void TestReloadEmpty() => TestReload(true);
+    private void TestReloadEmpty() => TestReload(0);
 
     /// <summary>Right-click the component: plays the reload of a magazine with rounds left (without Play), half missing.</summary>
     [ContextMenu("Test Reload (Not Empty)")]
-    private void TestReloadNotEmpty() => TestReload(false);
+    private void TestReloadNotEmpty() => TestReload(-1);
 
-    private void TestReload(bool empty)
+    /// <summary>Right-click the component: plays the reload with only a few rounds left (5), e.g. a short belt.</summary>
+    [ContextMenu("Test Reload (Few Rounds Left)")]
+    private void TestReloadFewLeft() => TestReload(5);
+
+    /// <summary><paramref name="left"/>: rounds left; below 0: half the magazine.</summary>
+    private void TestReload(int left)
     {
         if (Application.isPlaying)
         {
@@ -422,27 +504,43 @@ public class GunReloadMotion : MonoBehaviour
         if (preview != null)
             UnityEditor.EditorApplication.update -= preview;
 
-        Begin(empty ? gun.GetMagazineSize() : Mathf.Max(1, gun.GetMagazineSize() / 2), empty);
-        gun.EditorBoltBegin(empty);
+        int size = gun.GetMagazineSize();
+        if (left < 0)
+            left = size - Mathf.Max(1, size / 2);
+        left = Mathf.Clamp(left, 0, Mathf.Max(0, size - 1));
+        Begin(size - left, left);
+        gun.EditorBoltBegin(left <= 0);
         float duration = Mathf.Max(0.01f, gun.GetReloadTime());
         double start = UnityEditor.EditorApplication.timeSinceStartup;
         preview = () =>
         {
             float clock = (float)(UnityEditor.EditorApplication.timeSinceStartup - start);
             float t = this == null ? 1f : clock / duration;
-            if (this != null && t < 1f)
+            bool lost = this != null && !PartsAlive();
+            if (this != null && t < 1f && !lost)
             {
-                Evaluate(t, clock, true);
-                PreviewGunPose();
-                if (gun != null)
-                    gun.EditorBoltTick(clock);
-                UnityEditor.SceneView.RepaintAll();
-                return;
+                try
+                {
+                    Evaluate(t, clock, true);
+                    PreviewGunPose();
+                    if (gun != null)
+                        gun.EditorBoltTick(clock);
+                    UnityEditor.SceneView.RepaintAll();
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lost = true;
+                    Debug.LogWarning($"{name}: reload preview stopped ({ex.Message}).");
+                }
             }
+            // Over, cut short, or a part gone (its prefab reloaded meanwhile): never left half way, always put back.
             UnityEditor.EditorApplication.update -= preview;
             preview = null;
             if (this != null)
             {
+                if (lost)
+                    Debug.LogWarning($"{name}: some parts were reloaded during the reload preview; it stopped and put the gun back. Run it again.");
                 Stop();
                 PreviewGunPose();
                 if (gun != null)
@@ -456,6 +554,15 @@ public class GunReloadMotion : MonoBehaviour
 
 #if UNITY_EDITOR
     private UnityEditor.EditorApplication.CallbackFunction preview;
+
+    /// <summary>Every part still there (none destroyed meanwhile, e.g. by its prefab being reloaded).</summary>
+    private bool PartsAlive()
+    {
+        foreach (PartState p in parts.Values)
+            if (p.part == null)
+                return false;
+        return true;
+    }
 
     /// <summary>Edit mode: the gun does not tick, so its tilt is shown on its transform directly.</summary>
     private void PreviewGunPose()

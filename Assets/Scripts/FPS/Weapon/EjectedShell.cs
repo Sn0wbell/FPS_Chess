@@ -28,6 +28,11 @@ public sealed class EjectedShell : MonoBehaviour
     private bool resting;
     private float endTime;
 
+    /// <summary>Its speed now (m/s).</summary>
+    public Vector3 Velocity => velocity;
+    /// <summary>Its tumble now: axis × degrees/s.</summary>
+    public Vector3 Spin => spinAxis * spin;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
