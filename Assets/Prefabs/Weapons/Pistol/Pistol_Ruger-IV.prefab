@@ -372,6 +372,7 @@ GameObject:
   - component: {fileID: 5583732836447740628}
   - component: {fileID: 5279363184896867243}
   - component: {fileID: 5362985969511783560}
+  - component: {fileID: 4480353987362658203}
   m_Layer: 10
   m_Name: Pistol_Ruger-IV
   m_TagString: Untagged
@@ -393,6 +394,13 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 9056548750950306619}
+  - {fileID: 8187220210630823348}
+  - {fileID: 8753965925071840089}
+  - {fileID: 6151534127885089571}
+  - {fileID: 5786118451157543905}
+  - {fileID: 4547589551839141885}
+  - {fileID: 5201063051319102042}
+  - {fileID: 2682328971561490514}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &5583732836447740628
@@ -442,7 +450,7 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 0.05, y: 0.125, z: 0.5}
-  m_Center: {x: 0, y: 0.06, z: 1.08}
+  m_Center: {x: 0, y: 0.07, z: 1.23}
 --- !u!114 &5362985969511783560
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -459,7 +467,7 @@ MonoBehaviour:
   weaponType: 0
   weaponModelPrefab: {fileID: 6416583304607932461}
   weaponDisplayScale: 0.8
-  firePointDistance: 1.25
+  firePointDistance: 1.35
   fireRate: 10.5
   damage: 34
   range: 115
@@ -574,7 +582,7 @@ MonoBehaviour:
   aimScopeFOV: 20
   normalFOV: 60
   aimSpeed: 9
-  aimNoScopeOffset: {x: -0.31, y: 0.169, z: -0.25}
+  aimNoScopeOffset: {x: -0.31, y: 0.11, z: -0.25}
   aimScopeOffset: {x: 0, y: 0, z: 0}
   smoothSpreadSpeed: 12
   bulletPrefab: {fileID: 8489818951931819000, guid: 680aa6d352c3f084abebee4970363974, type: 3}
@@ -582,11 +590,317 @@ MonoBehaviour:
   bulletLifeTime: 3
   muzzleFlash: {fileID: 8546945005533439411}
   fireSound: {fileID: 0}
+  boltPart: {fileID: 451036053442812867}
+  boltBackPoint: {fileID: 6151534127885089571}
+  boltLiftPoint: {fileID: 0}
+  boltCycle: 0
+  boltCycleTime: 0.09
+  manualActionDelay: 0.15
+  boltCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  boltLockOnEmpty: 1
+  boltMovesWhenFiring: 1
+  shellPrefab: {fileID: 3037766147805866359, guid: b2ec09cbab5544b4b040d64b77367be3, type: 3}
+  shellEjectPoint: {fileID: 8753965925071840089}
+  shellEjectVelocity: {x: 1.2, y: 1.8, z: -0.3}
+  shellEjectRandomness: 0.2
+  shellSpin: 720
+  shellLifetime: 3
+  shellScale: 1.49
   modelRecoilPositionKick: {x: 0, y: 0.0075, z: -0.055}
   modelRecoilRotationKick: {x: -1.75, y: 0.35, z: 0.55}
   modelRecoilPositionRecovery: 18
   modelRecoilRotationRecovery: 20
   modelRecoilAimMultiplier: 0.6
+--- !u!114 &4480353987362658203
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1654349270832240466}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66dffd6388764158bf36c4fae25477f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GunReloadMotion
+  steps:
+  - label: Tilt the gun
+    part: {fileID: 6434436283507586757}
+    action: 0
+    when: 0
+    rounds: 1
+    target: {fileID: 8187220210630823348}
+    from: 0
+    to: 0.09
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Magazine out (rounds left)
+    part: {fileID: 140974410336113106}
+    action: 0
+    when: 2
+    rounds: 1
+    target: {fileID: 5786118451157543905}
+    from: 0.11
+    to: 0.19
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Shake the gun hard (empty)
+    part: {fileID: 6434436283507586757}
+    action: 0
+    when: 1
+    rounds: 1
+    target: {fileID: 2682328971561490514}
+    from: 0.11
+    to: 0.22
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Magazine flung out by the shake (empty)
+    part: {fileID: 140974410336113106}
+    action: 4
+    when: 1
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.22
+    to: 0.22
+    ease: 0
+    dropVelocity: {x: 2, y: -5, z: 0}
+    dropLifetime: 5
+    dropSpin: 450
+  - label: Hide magazine (empty)
+    part: {fileID: 140974410336113106}
+    action: 2
+    when: 1
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.22
+    to: 0.22
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back from the shake (empty)
+    part: {fileID: 6434436283507586757}
+    action: 0
+    when: 1
+    rounds: 1
+    target: {fileID: 8187220210630823348}
+    from: 0.22
+    to: 0.33
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Old magazine put away (rounds left)
+    part: {fileID: 140974410336113106}
+    action: 0
+    when: 2
+    rounds: 1
+    target: {fileID: 5201063051319102042}
+    from: 0.19
+    to: 0.28
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (rounds left)
+    part: {fileID: 140974410336113106}
+    action: 2
+    when: 2
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.28
+    to: 0.28
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine below
+    part: {fileID: 140974410336113106}
+    action: 3
+    when: 0
+    rounds: 1
+    target: {fileID: 4547589551839141885}
+    from: 0.59
+    to: 0.59
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine in
+    part: {fileID: 140974410336113106}
+    action: 1
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.59
+    to: 0.73
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Release the bolt (empty)
+    part: {fileID: 6434436283507586757}
+    action: 5
+    when: 1
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.73
+    to: 0.79
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back
+    part: {fileID: 6434436283507586757}
+    action: 1
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.86
+    to: 1
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  perRoundSteps: []
+  perRoundFrom: 0.2
+  perRoundTo: 0.8
+  maxRepeats: 8
+--- !u!1 &1860688461470746390
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6151534127885089571}
+  m_Layer: 10
+  m_Name: BoltBackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6151534127885089571
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1860688461470746390}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.10904347, z: 0.774957}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2863402920907575068
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5786118451157543905}
+  m_Layer: 10
+  m_Name: MagOut
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5786118451157543905
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2863402920907575068}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.09824506, y: -0, z: -0, w: 0.9951623}
+  m_LocalPosition: {x: 0, y: -0.316, z: 0.952}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: 11.276, y: 0, z: 0}
+--- !u!1 &2977368825953533811
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4547589551839141885}
+  m_Layer: 10
+  m_Name: MagIn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4547589551839141885
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2977368825953533811}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.09824506, y: -0, z: -0, w: 0.9951623}
+  m_LocalPosition: {x: 0, y: -0.684, z: 0.9}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &3076480654111761830
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8753965925071840089}
+  m_Layer: 10
+  m_Name: ShellEjectPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8753965925071840089
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3076480654111761830}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.019784, y: 0.082325, z: 1.00499}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4102145513331195678
 GameObject:
   m_ObjectHideFlags: 0
@@ -5466,6 +5780,68 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!1 &4531214299710994890
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5201063051319102042}
+  m_Layer: 10
+  m_Name: MagStow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5201063051319102042
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4531214299710994890}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.2090649, y: 0.056018975, z: -0.25268388, w: 0.9430295}
+  m_LocalPosition: {x: -0.46, y: -0.964733, z: 0.659447}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: 25, y: 0, z: -30}
+--- !u!1 &5357156575454049830
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8187220210630823348}
+  m_Layer: 10
+  m_Name: ReloadTilt
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8187220210630823348
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5357156575454049830}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.0782996, y: -0.007920155, z: 0.12806842, w: -0.9886379}
+  m_LocalPosition: {x: -0.049227, y: -0.173622, z: 0.110351}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: -8.789, y: 2.071, z: -14.921}
 --- !u!1 &5518507388657514060
 GameObject:
   m_ObjectHideFlags: 0
@@ -5673,7 +6049,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.9, y: 1.15, z: 1.7}
+  m_LocalScale: {x: 2.5, y: 1.65, z: 1.9}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5259090817385014867}
@@ -5778,6 +6154,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &6772589880336617476
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2682328971561490514}
+  m_Layer: 10
+  m_Name: GunShake
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2682328971561490514
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6772589880336617476}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.057812344, y: 0.053397458, z: 0.8253317, w: -0.5591369}
+  m_LocalPosition: {x: -0.049227, y: -0.173622, z: 0.110351}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6434436283507586757}
+  m_LocalEulerAnglesHint: {x: -8.789, y: 2.071, z: -111.926}
 --- !u!1 &7337815850252622726
 GameObject:
   m_ObjectHideFlags: 0

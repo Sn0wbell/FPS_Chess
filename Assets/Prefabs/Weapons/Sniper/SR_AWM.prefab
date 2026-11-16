@@ -1183,6 +1183,7 @@ GameObject:
   - component: {fileID: 3595316577206867391}
   - component: {fileID: 6648064367521417505}
   - component: {fileID: 2773392328743331900}
+  - component: {fileID: 5233253129771261952}
   m_Layer: 10
   m_Name: SR_AWM
   m_TagString: Untagged
@@ -1204,6 +1205,10 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7405999385011321375}
+  - {fileID: 1230784321268899509}
+  - {fileID: 4500974059237909816}
+  - {fileID: 1585073347445002527}
+  - {fileID: 6564291457482644637}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &3595316577206867391
@@ -1398,6 +1403,14 @@ MonoBehaviour:
   modelRecoilPositionRecovery: 18
   modelRecoilRotationRecovery: 20
   modelRecoilAimMultiplier: 0.6
+  boltPart: {fileID: 0}
+  boltBackPoint: {fileID: 0}
+  boltLiftPoint: {fileID: 0}
+  boltCycle: 0
+  boltCycleTime: 0.08
+  manualActionDelay: 0.15
+  boltLockOnEmpty: 0
+  boltMovesWhenFiring: 1
 --- !u!1 &4216997585214232410
 GameObject:
   m_ObjectHideFlags: 0
@@ -7891,3 +7904,243 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &8086275958456981566
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1230784321268899509}
+  m_Layer: 10
+  m_Name: ReloadTilt
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1230784321268899509
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8086275958456981566}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.127592, y: -0.009337, z: 0.165345, w: -0.977903}
+  m_LocalPosition: {x: 0.036079, y: 0.164438, z: 0.496783}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1581004857412551338}
+  m_LocalEulerAnglesHint: {x: -14.3, y: 3.6, z: -19.6}
+--- !u!1 &2075070215633577462
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4500974059237909816}
+  m_Layer: 10
+  m_Name: MagOut
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4500974059237909816
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2075070215633577462}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.049325, y: -0.705384, z: -0.049325, w: 0.705384}
+  m_LocalPosition: {x: 0, y: -0.14672, z: 0.893246}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1581004857412551338}
+  m_LocalEulerAnglesHint: {x: 0, y: -90, z: -8}
+--- !u!1 &2356713202622197367
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1585073347445002527}
+  m_Layer: 10
+  m_Name: MagIn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1585073347445002527
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2356713202622197367}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.100916, y: -0.699869, z: 0.100916, w: 0.699869}
+  m_LocalPosition: {x: 0, y: -0.319651, z: 0.925245}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1581004857412551338}
+  m_LocalEulerAnglesHint: {x: 0, y: -90, z: 16.4}
+--- !u!1 &7748433055972302260
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6564291457482644637}
+  m_Layer: 10
+  m_Name: MagStow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6564291457482644637
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7748433055972302260}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.030843, y: -0.627212, z: -0.326506, w: 0.706434}
+  m_LocalPosition: {x: -0.638792, y: -1.148144, z: 0.256603}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1581004857412551338}
+  m_LocalEulerAnglesHint: {x: -26.9, y: -76.3, z: -28.3}
+--- !u!114 &5233253129771261952
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3797353915184839719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66dffd6388764158bf36c4fae25477f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GunReloadMotion
+  steps:
+  - label: Tilt the gun
+    part: {fileID: 1581004857412551338}
+    action: 0
+    when: 0
+    target: {fileID: 1230784321268899509}
+    from: 0
+    to: 0.19
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Magazine out
+    part: {fileID: 7190614368995494529}
+    action: 0
+    when: 0
+    target: {fileID: 4500974059237909816}
+    from: 0.19
+    to: 0.24
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (empty)
+    part: {fileID: 7190614368995494529}
+    action: 2
+    when: 1
+    target: {fileID: 0}
+    from: 0.24
+    to: 0.24
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Old magazine thrown (empty)
+    part: {fileID: 7190614368995494529}
+    action: 4
+    when: 1
+    target: {fileID: 0}
+    from: 0.24
+    to: 0.24
+    ease: 0
+    dropVelocity: {x: -5, y: 0, z: 3.5}
+    dropLifetime: 5
+    dropSpin: 450
+  - label: Old magazine put away (rounds left)
+    part: {fileID: 7190614368995494529}
+    action: 0
+    when: 2
+    target: {fileID: 6564291457482644637}
+    from: 0.24
+    to: 0.34
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (rounds left)
+    part: {fileID: 7190614368995494529}
+    action: 2
+    when: 2
+    target: {fileID: 0}
+    from: 0.34
+    to: 0.34
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine below
+    part: {fileID: 7190614368995494529}
+    action: 3
+    when: 0
+    target: {fileID: 1585073347445002527}
+    from: 0.55
+    to: 0.55
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine in
+    part: {fileID: 7190614368995494529}
+    action: 1
+    when: 0
+    target: {fileID: 0}
+    from: 0.55
+    to: 0.73
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back
+    part: {fileID: 1581004857412551338}
+    action: 1
+    when: 0
+    target: {fileID: 0}
+    from: 0.73
+    to: 1
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  perRoundSteps: []
+  perRoundFrom: 0.2
+  perRoundTo: 0.8
+  maxRepeats: 8

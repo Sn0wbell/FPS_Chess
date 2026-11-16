@@ -553,6 +553,7 @@ GameObject:
   - component: {fileID: 3648075659823012335}
   - component: {fileID: 1418629414135039489}
   - component: {fileID: 3453688193866195886}
+  - component: {fileID: 7311769851271592794}
   m_Layer: 10
   m_Name: ShotGun_AA-12
   m_TagString: Untagged
@@ -574,6 +575,12 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1841570854550787555}
+  - {fileID: 6500953823695157373}
+  - {fileID: 4502671072698042767}
+  - {fileID: 8631853724071932381}
+  - {fileID: 4057901643208782729}
+  - {fileID: 8362740123275259682}
+  - {fileID: 6091778753684912051}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &3648075659823012335
@@ -771,6 +778,21 @@ MonoBehaviour:
   pelletCount: 8
   pelletDamageMultiplier: 1
   pelletSpreadAngle: 5.6
+  boltPart: {fileID: 5299206504216180451}
+  boltBackPoint: {fileID: 4502671072698042767}
+  boltLiftPoint: {fileID: 0}
+  boltCycle: 0
+  boltCycleTime: 0.08
+  manualActionDelay: 0.15
+  boltLockOnEmpty: 0
+  boltMovesWhenFiring: 0
+  shellPrefab: {fileID: 7593322688013649523, guid: 5f3d2236b34a444fb73b1ca00f984a52, type: 3}
+  shellEjectPoint: {fileID: 8631853724071932381}
+  shellEjectVelocity: {x: 1.5, y: 1, z: 0}
+  shellEjectRandomness: 0.2
+  shellSpin: 720
+  shellLifetime: 3
+  shellScale: 1.947
 --- !u!1 &3473053886553380423
 GameObject:
   m_ObjectHideFlags: 0
@@ -5961,3 +5983,316 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &3093101428928372013
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6500953823695157373}
+  m_Layer: 10
+  m_Name: ReloadTilt
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6500953823695157373
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3093101428928372013}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.127592, y: -0.009337, z: 0.165345, w: -0.977903}
+  m_LocalPosition: {x: 0.050648, y: 0.096846, z: 0.280286}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: -14.3, y: 3.6, z: -19.6}
+--- !u!1 &1566396980847924667
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4502671072698042767}
+  m_Layer: 10
+  m_Name: BoltBackPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4502671072698042767
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1566396980847924667}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.1106, z: 0.847647}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1345155400374158067
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8631853724071932381}
+  m_Layer: 10
+  m_Name: ShellEjectPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8631853724071932381
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1345155400374158067}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.06702, y: 0.0086, z: 0.898959}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5219922071159699254
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4057901643208782729}
+  m_Layer: 10
+  m_Name: MagOut
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4057901643208782729
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5219922071159699254}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.069756, y: 0, z: 0, w: 0.997564}
+  m_LocalPosition: {x: 0, y: -0.334828, z: 0.913814}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: 8, y: 0, z: 0}
+--- !u!1 &8648484015185336040
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8362740123275259682}
+  m_Layer: 10
+  m_Name: MagIn
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8362740123275259682
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8648484015185336040}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.142717, y: 0, z: 0, w: 0.989764}
+  m_LocalPosition: {x: 0, y: -0.849118, z: 1.061905}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: -16.4, y: 0, z: 0}
+--- !u!1 &8611415603438986378
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6091778753684912051}
+  m_Layer: 10
+  m_Name: MagStow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6091778753684912051
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8611415603438986378}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.209065, y: 0.056019, z: -0.252684, w: 0.94303}
+  m_LocalPosition: {x: -0.389099, y: -0.784172, z: 0.527878}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6091056546203349537}
+  m_LocalEulerAnglesHint: {x: 25, y: 0, z: -30}
+--- !u!114 &7311769851271592794
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3226327675971082762}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 66dffd6388764158bf36c4fae25477f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GunReloadMotion
+  steps:
+  - label: Tilt the gun
+    part: {fileID: 6091056546203349537}
+    action: 0
+    when: 0
+    target: {fileID: 6500953823695157373}
+    from: 0
+    to: 0.19
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Magazine out
+    part: {fileID: 6031215242484170655}
+    action: 0
+    when: 0
+    target: {fileID: 4057901643208782729}
+    from: 0.19
+    to: 0.24
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (empty)
+    part: {fileID: 6031215242484170655}
+    action: 2
+    when: 1
+    target: {fileID: 0}
+    from: 0.24
+    to: 0.24
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Old magazine thrown (empty)
+    part: {fileID: 6031215242484170655}
+    action: 4
+    when: 1
+    target: {fileID: 0}
+    from: 0.24
+    to: 0.24
+    ease: 0
+    dropVelocity: {x: -5, y: 0, z: 3.5}
+    dropLifetime: 5
+    dropSpin: 450
+  - label: Old magazine put away (rounds left)
+    part: {fileID: 6031215242484170655}
+    action: 0
+    when: 2
+    target: {fileID: 6091778753684912051}
+    from: 0.24
+    to: 0.34
+    ease: 2
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide magazine (rounds left)
+    part: {fileID: 6031215242484170655}
+    action: 2
+    when: 2
+    target: {fileID: 0}
+    from: 0.34
+    to: 0.34
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine below
+    part: {fileID: 6031215242484170655}
+    action: 3
+    when: 0
+    target: {fileID: 8362740123275259682}
+    from: 0.55
+    to: 0.55
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: New magazine in
+    part: {fileID: 6031215242484170655}
+    action: 1
+    when: 0
+    target: {fileID: 0}
+    from: 0.55
+    to: 0.73
+    ease: 3
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Rack the bolt (empty)
+    part: {fileID: 6091056546203349537}
+    action: 5
+    when: 1
+    target: {fileID: 0}
+    from: 0.74
+    to: 0.9
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Gun back
+    part: {fileID: 6091056546203349537}
+    action: 1
+    when: 0
+    target: {fileID: 0}
+    from: 0.73
+    to: 1
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  perRoundSteps: []
+  perRoundFrom: 0.2
+  perRoundTo: 0.8
+  maxRepeats: 8
