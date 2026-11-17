@@ -42,7 +42,9 @@ public enum ReloadCondition
     /// <summary>Only when the gun's ammo belt still runs into its box (rounds left in the box: it is put away).</summary>
     BeltInBox,
     /// <summary>Only when the gun's ammo belt is all out of its box (a short belt: thrown away, the box empty).</summary>
-    BeltOffBox
+    BeltOffBox,
+    /// <summary>Only when some rounds, but fewer than "Rounds", were left (e.g. a revolver's fired chambers, not emptied).</summary>
+    RoundsLeftFewerThan
 }
 
 public enum ReloadEase
@@ -231,6 +233,7 @@ public class GunReloadMotion : MonoBehaviour
             case ReloadCondition.NotEmpty: return left > 0;
             case ReloadCondition.RoundsAtLeast: return left >= s.rounds;
             case ReloadCondition.RoundsFewerThan: return left < s.rounds;
+            case ReloadCondition.RoundsLeftFewerThan: return left > 0 && left < s.rounds;
             default: return true;
         }
     }

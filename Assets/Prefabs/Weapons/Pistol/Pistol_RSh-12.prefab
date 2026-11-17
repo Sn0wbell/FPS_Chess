@@ -296,13 +296,14 @@ Transform:
   m_GameObject: {fileID: 434749986151218298}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.044139, y: -0.008874, z: 0.01265}
+  m_LocalPosition: {x: -0.018501, y: 0.0442, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1048311985423625053}
   - {fileID: 6274526763933698872}
   - {fileID: 3098519038360764266}
+  - {fileID: 3173986085203305568}
   m_Father: {fileID: 7160785948655040481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &628658236975094107
@@ -332,7 +333,7 @@ Transform:
   m_GameObject: {fileID: 628658236975094107}
   serializedVersion: 2
   m_LocalRotation: {x: -0.000000059604645, y: -1.7763567e-15, z: -2.823209e-23, w: 1}
-  m_LocalPosition: {x: 0, y: 0.045, z: -0.0275}
+  m_LocalPosition: {x: 0.01, y: 0.035, z: -0.0275}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -395,6 +396,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &866913085882965513
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 844250471560131848}
+  m_Layer: 10
+  m_Name: CasePull_2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &844250471560131848
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866913085882965513}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3858753451631619739}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &986280245464431441
 GameObject:
   m_ObjectHideFlags: 0
@@ -486,6 +518,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &1248540565618967746
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3699699066913155933}
+  m_Layer: 10
+  m_Name: CasePull_6
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3699699066913155933
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1248540565618967746}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 873838575197983842}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1275077400149054647
 GameObject:
   m_ObjectHideFlags: 0
@@ -602,13 +665,14 @@ Transform:
   m_GameObject: {fileID: 1300592723147741750}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.113421, y: -0.008874, z: 0.01265}
+  m_LocalPosition: {x: 0.033461, y: 0.0442, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6691865751322947644}
   - {fileID: 8825796250210331499}
   - {fileID: 6923742207083502584}
+  - {fileID: 179698138726243315}
   m_Father: {fileID: 7160785948655040481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1891576897893349331
@@ -701,6 +765,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &1907892466514477108
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7313470686008428336}
+  m_Layer: 10
+  m_Name: CasePull_4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7313470686008428336
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1907892466514477108}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1738437894876444916}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1915397556455226191
 GameObject:
   m_ObjectHideFlags: 0
@@ -998,7 +1093,7 @@ Transform:
   m_GameObject: {fileID: 2089068415241247215}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.207}
+  m_LocalPosition: {x: -0.01452, y: -0.00555, z: -0.02222}
   m_LocalScale: {x: 2.2, y: 1.85, z: 2.2}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1539,7 +1634,7 @@ Transform:
   m_GameObject: {fileID: 2526459981905218674}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.03939, y: 0.024312, z: 1.139625}
+  m_LocalPosition: {x: -0.00748, y: 0.022729, z: 1.373963}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1577,7 +1672,7 @@ Transform:
   m_GameObject: {fileID: 2725910131927538929}
   serializedVersion: 2
   m_LocalRotation: {x: 0.249752, y: 0.073929, z: -0.17234, w: 0.949978}
-  m_LocalPosition: {x: -0.03497, y: 0.695191, z: 0.22706}
+  m_LocalPosition: {x: -0.03497, y: 0.595191, z: 0.13706}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1698,13 +1793,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3083636497825495115}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0.642788, w: 0.766044}
-  m_LocalPosition: {x: -0.03939, y: 0.024312, z: 1.139625}
+  m_LocalRotation: {x: 0, y: 0, z: 0.737277, w: 0.67559}
+  m_LocalPosition: {x: -0.00748, y: 0.022729, z: 1.373963}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7705117875478316488}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 80}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 95}
 --- !u!1 &3166066309630673104
 GameObject:
   m_ObjectHideFlags: 0
@@ -1730,13 +1825,14 @@ Transform:
   m_GameObject: {fileID: 3166066309630673104}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.113421, y: 0.031126, z: 0.01265}
+  m_LocalPosition: {x: 0.033461, y: 0.0742, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2493016273437586794}
   - {fileID: 3109915097622268340}
   - {fileID: 1524469145490299980}
+  - {fileID: 3699699066913155933}
   m_Father: {fileID: 7160785948655040481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3554312781022007860
@@ -1829,6 +1925,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &3569206661639807929
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3173986085203305568}
+  m_Layer: 10
+  m_Name: CasePull_3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3173986085203305568
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3569206661639807929}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 282846570235944526}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3613167023519882787
 GameObject:
   m_ObjectHideFlags: 0
@@ -6709,6 +6836,37 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!1 &3938000825691995405
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 424983482385562520}
+  m_Layer: 10
+  m_Name: CasePull_1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &424983482385562520
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3938000825691995405}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8710767264790559754}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3943527914902798505
 GameObject:
   m_ObjectHideFlags: 0
@@ -7126,13 +7284,14 @@ Transform:
   m_GameObject: {fileID: 4565142450726351612}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.07878, y: 0.051126, z: 0.01265}
+  m_LocalPosition: {x: 0.00748, y: 0.0892, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3833966913191165169}
   - {fileID: 7077554028991089882}
   - {fileID: 5395276055585009901}
+  - {fileID: 424983482385562520}
   m_Father: {fileID: 7160785948655040481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4683460618680529650
@@ -7702,7 +7861,7 @@ Transform:
   m_GameObject: {fileID: 5829322935829146830}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.00745, y: -0.010743, z: 0.9645}
+  m_LocalPosition: {x: -0.141, y: -0.014979, z: 0.932}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7798,6 +7957,37 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &6047404326701603208
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 179698138726243315}
+  m_Layer: 10
+  m_Name: CasePull_5
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &179698138726243315
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6047404326701603208}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -0.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5534048722184880496}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6175663164513500387
 GameObject:
   m_ObjectHideFlags: 0
@@ -8040,13 +8230,14 @@ Transform:
   m_GameObject: {fileID: 7585905734361168536}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.044139, y: 0.031126, z: 0.01265}
+  m_LocalPosition: {x: -0.018501, y: 0.0742, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5771982150576236212}
   - {fileID: 5534552343741553693}
   - {fileID: 7092484750064126889}
+  - {fileID: 844250471560131848}
   m_Father: {fileID: 7160785948655040481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7614330895482716256
@@ -8286,14 +8477,46 @@ Transform:
   m_GameObject: {fileID: 7874984417471383417}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.07878, y: -0.028874, z: 0.01265}
+  m_LocalPosition: {x: 0.00748, y: 0.0292, z: -0.09832}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2892024964993420745}
   - {fileID: 8837409037555999891}
   - {fileID: 6307753744280805636}
+  - {fileID: 7313470686008428336}
   m_Father: {fileID: 7160785948655040481}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8302751442032381774
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3121682818027099514}
+  m_Layer: 10
+  m_Name: CaseThrow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3121682818027099514
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8302751442032381774}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.247107, y: -0.174979, z: 1.175643}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7705117875478316488}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8428457424602063185
 GameObject:
@@ -8698,6 +8921,7 @@ Transform:
   - {fileID: 8005040659079574350}
   - {fileID: 3253448149640488923}
   - {fileID: 5263054194937756349}
+  - {fileID: 3121682818027099514}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &8416941873325708082
@@ -8764,7 +8988,7 @@ MonoBehaviour:
   weaponType: 0
   weaponModelPrefab: {fileID: 6969446444999860973}
   weaponDisplayScale: 0.8
-  firePointDistance: 1.35
+  firePointDistance: 1.95
   fireRate: 3
   damage: 62
   range: 115
@@ -8929,7 +9153,7 @@ MonoBehaviour:
   - label: Tilt the gun
     part: {fileID: 7705117875478316488}
     action: 0
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 7950013485399871733}
     from: 0
@@ -8938,14 +9162,38 @@ MonoBehaviour:
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
     dropSpin: 0
-  - label: Cylinder out
+  - label: Cylinder out (empty)
     part: {fileID: 7160785948655040481}
     action: 0
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 8855208897980615732}
     from: 0.08
     to: 0.15
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Cylinder out (rounds left)
+    part: {fileID: 7160785948655040481}
+    action: 0
+    when: 2
+    rounds: 1
+    target: {fileID: 8855208897980615732}
+    from: 0
+    to: 0.12
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Muzzle down (rounds left)
+    part: {fileID: 7705117875478316488}
+    action: 0
+    when: 2
+    rounds: 1
+    target: {fileID: 8005040659079574350}
+    from: 0
+    to: 0.12
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -8956,8 +9204,8 @@ MonoBehaviour:
     when: 4
     rounds: 6
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -8968,8 +9216,8 @@ MonoBehaviour:
     when: 3
     rounds: 6
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -8980,8 +9228,8 @@ MonoBehaviour:
     when: 4
     rounds: 5
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -8992,8 +9240,8 @@ MonoBehaviour:
     when: 3
     rounds: 5
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9004,8 +9252,8 @@ MonoBehaviour:
     when: 4
     rounds: 4
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9016,8 +9264,8 @@ MonoBehaviour:
     when: 3
     rounds: 4
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9028,8 +9276,8 @@ MonoBehaviour:
     when: 4
     rounds: 3
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9040,8 +9288,8 @@ MonoBehaviour:
     when: 3
     rounds: 3
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9052,8 +9300,8 @@ MonoBehaviour:
     when: 4
     rounds: 2
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9064,8 +9312,8 @@ MonoBehaviour:
     when: 3
     rounds: 2
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9076,8 +9324,8 @@ MonoBehaviour:
     when: 4
     rounds: 1
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9088,16 +9336,16 @@ MonoBehaviour:
     when: 3
     rounds: 1
     target: {fileID: 0}
-    from: 0.08
-    to: 0.08
+    from: 0
+    to: 0
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
     dropSpin: 0
-  - label: Muzzle up
+  - label: Muzzle up (empty)
     part: {fileID: 7705117875478316488}
     action: 0
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 7847843178650965596}
     from: 0.15
@@ -9109,20 +9357,8 @@ MonoBehaviour:
   - label: Spent case 1 ejected
     part: {fileID: 3833966913191165169}
     action: 4
-    when: 4
-    rounds: 6
-    target: {fileID: 0}
-    from: 0.25
-    to: 0.25
-    ease: 0
-    dropVelocity: {x: 0.075, y: 0.129904, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 1 ejected
-    part: {fileID: 7077554028991089882}
-    action: 4
-    when: 3
-    rounds: 6
+    when: 1
+    rounds: 1
     target: {fileID: 0}
     from: 0.25
     to: 0.25
@@ -9133,19 +9369,7 @@ MonoBehaviour:
   - label: Hide case 1
     part: {fileID: 3833966913191165169}
     action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.25
-    to: 0.25
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Hide live round 1
-    part: {fileID: 7077554028991089882}
-    action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.25
@@ -9157,20 +9381,8 @@ MonoBehaviour:
   - label: Spent case 2 ejected
     part: {fileID: 5771982150576236212}
     action: 4
-    when: 4
-    rounds: 5
-    target: {fileID: 0}
-    from: 0.254
-    to: 0.254
-    ease: 0
-    dropVelocity: {x: -0.075, y: 0.129904, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 2 ejected
-    part: {fileID: 5534552343741553693}
-    action: 4
-    when: 3
-    rounds: 5
+    when: 1
+    rounds: 1
     target: {fileID: 0}
     from: 0.254
     to: 0.254
@@ -9181,19 +9393,7 @@ MonoBehaviour:
   - label: Hide case 2
     part: {fileID: 5771982150576236212}
     action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.254
-    to: 0.254
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Hide live round 2
-    part: {fileID: 5534552343741553693}
-    action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.254
@@ -9205,20 +9405,8 @@ MonoBehaviour:
   - label: Spent case 3 ejected
     part: {fileID: 1048311985423625053}
     action: 4
-    when: 4
-    rounds: 4
-    target: {fileID: 0}
-    from: 0.258
-    to: 0.258
-    ease: 0
-    dropVelocity: {x: -0.15, y: 0, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 3 ejected
-    part: {fileID: 6274526763933698872}
-    action: 4
-    when: 3
-    rounds: 4
+    when: 1
+    rounds: 1
     target: {fileID: 0}
     from: 0.258
     to: 0.258
@@ -9229,19 +9417,7 @@ MonoBehaviour:
   - label: Hide case 3
     part: {fileID: 1048311985423625053}
     action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.258
-    to: 0.258
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Hide live round 3
-    part: {fileID: 6274526763933698872}
-    action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.258
@@ -9253,20 +9429,8 @@ MonoBehaviour:
   - label: Spent case 4 ejected
     part: {fileID: 2892024964993420745}
     action: 4
-    when: 4
-    rounds: 3
-    target: {fileID: 0}
-    from: 0.262
-    to: 0.262
-    ease: 0
-    dropVelocity: {x: -0.075, y: -0.129904, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 4 ejected
-    part: {fileID: 8837409037555999891}
-    action: 4
-    when: 3
-    rounds: 3
+    when: 1
+    rounds: 1
     target: {fileID: 0}
     from: 0.262
     to: 0.262
@@ -9277,19 +9441,7 @@ MonoBehaviour:
   - label: Hide case 4
     part: {fileID: 2892024964993420745}
     action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.262
-    to: 0.262
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Hide live round 4
-    part: {fileID: 8837409037555999891}
-    action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.262
@@ -9301,20 +9453,8 @@ MonoBehaviour:
   - label: Spent case 5 ejected
     part: {fileID: 6691865751322947644}
     action: 4
-    when: 4
-    rounds: 2
-    target: {fileID: 0}
-    from: 0.266
-    to: 0.266
-    ease: 0
-    dropVelocity: {x: 0.075, y: -0.129904, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 5 ejected
-    part: {fileID: 8825796250210331499}
-    action: 4
-    when: 3
-    rounds: 2
+    when: 1
+    rounds: 1
     target: {fileID: 0}
     from: 0.266
     to: 0.266
@@ -9325,19 +9465,7 @@ MonoBehaviour:
   - label: Hide case 5
     part: {fileID: 6691865751322947644}
     action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.266
-    to: 0.266
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Hide live round 5
-    part: {fileID: 8825796250210331499}
-    action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.266
@@ -9349,19 +9477,7 @@ MonoBehaviour:
   - label: Spent case 6 ejected
     part: {fileID: 2493016273437586794}
     action: 4
-    when: 4
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.27
-    to: 0.27
-    ease: 0
-    dropVelocity: {x: 0.15, y: 0, z: -0.8}
-    dropLifetime: 5
-    dropSpin: 540
-  - label: Live round 6 ejected
-    part: {fileID: 3109915097622268340}
-    action: 4
-    when: 3
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.27
@@ -9373,7 +9489,7 @@ MonoBehaviour:
   - label: Hide case 6
     part: {fileID: 2493016273437586794}
     action: 2
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.27
@@ -9382,22 +9498,10 @@ MonoBehaviour:
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
     dropSpin: 0
-  - label: Hide live round 6
-    part: {fileID: 3109915097622268340}
-    action: 2
-    when: 0
-    rounds: 1
-    target: {fileID: 0}
-    from: 0.27
-    to: 0.27
-    ease: 0
-    dropVelocity: {x: 0, y: -0.5, z: 0}
-    dropLifetime: 5
-    dropSpin: 0
-  - label: Muzzle down
+  - label: Muzzle down (empty)
     part: {fileID: 7705117875478316488}
     action: 0
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 8005040659079574350}
     from: 0.28
@@ -9409,8 +9513,8 @@ MonoBehaviour:
   - label: Round 1 in the hand
     part: {fileID: 5395276055585009901}
     action: 3
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 6
     target: {fileID: 3253448149640488923}
     from: 0.36
     to: 0.36
@@ -9421,8 +9525,8 @@ MonoBehaviour:
   - label: Round 1 into its chamber
     part: {fileID: 5395276055585009901}
     action: 1
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 6
     target: {fileID: 0}
     from: 0.36
     to: 0.418667
@@ -9433,8 +9537,8 @@ MonoBehaviour:
   - label: Round 2 in the hand
     part: {fileID: 7092484750064126889}
     action: 3
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 5
     target: {fileID: 3253448149640488923}
     from: 0.433333
     to: 0.433333
@@ -9445,8 +9549,8 @@ MonoBehaviour:
   - label: Round 2 into its chamber
     part: {fileID: 7092484750064126889}
     action: 1
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 5
     target: {fileID: 0}
     from: 0.433333
     to: 0.492
@@ -9457,8 +9561,8 @@ MonoBehaviour:
   - label: Round 3 in the hand
     part: {fileID: 3098519038360764266}
     action: 3
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 4
     target: {fileID: 3253448149640488923}
     from: 0.506667
     to: 0.506667
@@ -9469,8 +9573,8 @@ MonoBehaviour:
   - label: Round 3 into its chamber
     part: {fileID: 3098519038360764266}
     action: 1
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 4
     target: {fileID: 0}
     from: 0.506667
     to: 0.565333
@@ -9481,8 +9585,8 @@ MonoBehaviour:
   - label: Round 4 in the hand
     part: {fileID: 6307753744280805636}
     action: 3
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 3
     target: {fileID: 3253448149640488923}
     from: 0.58
     to: 0.58
@@ -9493,8 +9597,8 @@ MonoBehaviour:
   - label: Round 4 into its chamber
     part: {fileID: 6307753744280805636}
     action: 1
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 3
     target: {fileID: 0}
     from: 0.58
     to: 0.638667
@@ -9505,8 +9609,8 @@ MonoBehaviour:
   - label: Round 5 in the hand
     part: {fileID: 6923742207083502584}
     action: 3
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 2
     target: {fileID: 3253448149640488923}
     from: 0.653333
     to: 0.653333
@@ -9517,8 +9621,8 @@ MonoBehaviour:
   - label: Round 5 into its chamber
     part: {fileID: 6923742207083502584}
     action: 1
-    when: 0
-    rounds: 1
+    when: 1
+    rounds: 2
     target: {fileID: 0}
     from: 0.653333
     to: 0.712
@@ -9529,7 +9633,7 @@ MonoBehaviour:
   - label: Round 6 in the hand
     part: {fileID: 1524469145490299980}
     action: 3
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 3253448149640488923}
     from: 0.726667
@@ -9541,11 +9645,311 @@ MonoBehaviour:
   - label: Round 6 into its chamber
     part: {fileID: 1524469145490299980}
     action: 1
-    when: 0
+    when: 1
     rounds: 1
     target: {fileID: 0}
     from: 0.726667
     to: 0.785333
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Pull spent case 1 out (rounds left)
+    part: {fileID: 3833966913191165169}
+    action: 0
+    when: 7
+    rounds: 6
+    target: {fileID: 424983482385562520}
+    from: 0.12
+    to: 0.154
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Toss spent case 1 away (rounds left)
+    part: {fileID: 3833966913191165169}
+    action: 4
+    when: 7
+    rounds: 6
+    target: {fileID: 0}
+    from: 0.1574
+    to: 0.1574
+    ease: 0
+    dropVelocity: {x: 0.3, y: 0.6, z: -0.4}
+    dropLifetime: 5
+    dropSpin: 360
+  - label: Hide tossed case 1 (rounds left)
+    part: {fileID: 3833966913191165169}
+    action: 2
+    when: 7
+    rounds: 6
+    target: {fileID: 0}
+    from: 0.1574
+    to: 0.1574
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Pull spent case 2 out (rounds left)
+    part: {fileID: 5771982150576236212}
+    action: 0
+    when: 7
+    rounds: 5
+    target: {fileID: 844250471560131848}
+    from: 0.188
+    to: 0.222
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Toss spent case 2 away (rounds left)
+    part: {fileID: 5771982150576236212}
+    action: 4
+    when: 7
+    rounds: 5
+    target: {fileID: 0}
+    from: 0.2254
+    to: 0.2254
+    ease: 0
+    dropVelocity: {x: 0.3, y: 0.6, z: -0.4}
+    dropLifetime: 5
+    dropSpin: 360
+  - label: Hide tossed case 2 (rounds left)
+    part: {fileID: 5771982150576236212}
+    action: 2
+    when: 7
+    rounds: 5
+    target: {fileID: 0}
+    from: 0.2254
+    to: 0.2254
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Pull spent case 3 out (rounds left)
+    part: {fileID: 1048311985423625053}
+    action: 0
+    when: 7
+    rounds: 4
+    target: {fileID: 3173986085203305568}
+    from: 0.256
+    to: 0.29
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Toss spent case 3 away (rounds left)
+    part: {fileID: 1048311985423625053}
+    action: 4
+    when: 7
+    rounds: 4
+    target: {fileID: 0}
+    from: 0.2934
+    to: 0.2934
+    ease: 0
+    dropVelocity: {x: 0.3, y: 0.6, z: -0.4}
+    dropLifetime: 5
+    dropSpin: 360
+  - label: Hide tossed case 3 (rounds left)
+    part: {fileID: 1048311985423625053}
+    action: 2
+    when: 7
+    rounds: 4
+    target: {fileID: 0}
+    from: 0.2934
+    to: 0.2934
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Pull spent case 4 out (rounds left)
+    part: {fileID: 2892024964993420745}
+    action: 0
+    when: 7
+    rounds: 3
+    target: {fileID: 7313470686008428336}
+    from: 0.324
+    to: 0.358
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Toss spent case 4 away (rounds left)
+    part: {fileID: 2892024964993420745}
+    action: 4
+    when: 7
+    rounds: 3
+    target: {fileID: 0}
+    from: 0.3614
+    to: 0.3614
+    ease: 0
+    dropVelocity: {x: 0.3, y: 0.6, z: -0.4}
+    dropLifetime: 5
+    dropSpin: 360
+  - label: Hide tossed case 4 (rounds left)
+    part: {fileID: 2892024964993420745}
+    action: 2
+    when: 7
+    rounds: 3
+    target: {fileID: 0}
+    from: 0.3614
+    to: 0.3614
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Pull spent case 5 out (rounds left)
+    part: {fileID: 6691865751322947644}
+    action: 0
+    when: 7
+    rounds: 2
+    target: {fileID: 179698138726243315}
+    from: 0.392
+    to: 0.426
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Toss spent case 5 away (rounds left)
+    part: {fileID: 6691865751322947644}
+    action: 4
+    when: 7
+    rounds: 2
+    target: {fileID: 0}
+    from: 0.4294
+    to: 0.4294
+    ease: 0
+    dropVelocity: {x: 0.3, y: 0.6, z: -0.4}
+    dropLifetime: 5
+    dropSpin: 360
+  - label: Hide tossed case 5 (rounds left)
+    part: {fileID: 6691865751322947644}
+    action: 2
+    when: 7
+    rounds: 2
+    target: {fileID: 0}
+    from: 0.4294
+    to: 0.4294
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 1 in the hand (rounds left)
+    part: {fileID: 5395276055585009901}
+    action: 3
+    when: 7
+    rounds: 6
+    target: {fileID: 3253448149640488923}
+    from: 0.732
+    to: 0.732
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 1 into its chamber (rounds left)
+    part: {fileID: 5395276055585009901}
+    action: 1
+    when: 7
+    rounds: 6
+    target: {fileID: 0}
+    from: 0.732
+    to: 0.7932
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 2 in the hand (rounds left)
+    part: {fileID: 7092484750064126889}
+    action: 3
+    when: 7
+    rounds: 5
+    target: {fileID: 3253448149640488923}
+    from: 0.664
+    to: 0.664
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 2 into its chamber (rounds left)
+    part: {fileID: 7092484750064126889}
+    action: 1
+    when: 7
+    rounds: 5
+    target: {fileID: 0}
+    from: 0.664
+    to: 0.7252
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 3 in the hand (rounds left)
+    part: {fileID: 3098519038360764266}
+    action: 3
+    when: 7
+    rounds: 4
+    target: {fileID: 3253448149640488923}
+    from: 0.596
+    to: 0.596
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 3 into its chamber (rounds left)
+    part: {fileID: 3098519038360764266}
+    action: 1
+    when: 7
+    rounds: 4
+    target: {fileID: 0}
+    from: 0.596
+    to: 0.6572
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 4 in the hand (rounds left)
+    part: {fileID: 6307753744280805636}
+    action: 3
+    when: 7
+    rounds: 3
+    target: {fileID: 3253448149640488923}
+    from: 0.528
+    to: 0.528
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 4 into its chamber (rounds left)
+    part: {fileID: 6307753744280805636}
+    action: 1
+    when: 7
+    rounds: 3
+    target: {fileID: 0}
+    from: 0.528
+    to: 0.5892
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 5 in the hand (rounds left)
+    part: {fileID: 6923742207083502584}
+    action: 3
+    when: 7
+    rounds: 2
+    target: {fileID: 3253448149640488923}
+    from: 0.46
+    to: 0.46
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Round 5 into its chamber (rounds left)
+    part: {fileID: 6923742207083502584}
+    action: 1
+    when: 7
+    rounds: 2
+    target: {fileID: 0}
+    from: 0.46
+    to: 0.5212
     ease: 0
     dropVelocity: {x: 0, y: -0.5, z: 0}
     dropLifetime: 5
@@ -9636,6 +10040,78 @@ MonoBehaviour:
     dropSpin: 0
   - label: Hide loaded round 6 (cylinder closed)
     part: {fileID: 1524469145490299980}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 1 (cylinder closed)
+    part: {fileID: 7077554028991089882}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 2 (cylinder closed)
+    part: {fileID: 5534552343741553693}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 3 (cylinder closed)
+    part: {fileID: 6274526763933698872}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 4 (cylinder closed)
+    part: {fileID: 8837409037555999891}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 5 (cylinder closed)
+    part: {fileID: 8825796250210331499}
+    action: 2
+    when: 0
+    rounds: 1
+    target: {fileID: 0}
+    from: 0.89
+    to: 0.89
+    ease: 0
+    dropVelocity: {x: 0, y: -0.5, z: 0}
+    dropLifetime: 5
+    dropSpin: 0
+  - label: Hide live round 6 (cylinder closed)
+    part: {fileID: 3109915097622268340}
     action: 2
     when: 0
     rounds: 1
